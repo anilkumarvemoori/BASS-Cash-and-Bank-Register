@@ -1,0 +1,1516 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Balaji Service Society — Cash &amp; Bank</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F5F6FB;
+    --surface:#FFFFFF;
+    --surface-alt:#EEF0FA;
+    --line:#E4E6F1;
+    --primary:#3B4FE0;
+    --primary-dark:#2635A6;
+    --primary-tint:#EDEFFD;
+    --ink:#171A2B;
+    --muted:#6B7086;
+    --income:#178A58;
+    --income-tint:#E7F6EE;
+    --expense:#D64545;
+    --expense-tint:#FCEAEA;
+    --accent:#F5A524;
+    --radius:14px;
+    --shadow:0 1px 2px rgba(23,26,43,0.04), 0 6px 20px rgba(23,26,43,0.06);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:'Inter',sans-serif; -webkit-font-smoothing:antialiased;
+  }
+  .app{display:flex; min-height:100vh;}
+
+  /* Sidebar */
+  aside.sidebar{
+    width:232px; flex-shrink:0; background:var(--surface); border-right:1px solid var(--line);
+    padding:26px 18px; display:flex; flex-direction:column; gap:26px; position:sticky; top:0; height:100vh;
+  }
+  .brand{display:flex; align-items:center; gap:10px; padding:0 8px;}
+  .brand .mark{
+    width:34px; height:34px; border-radius:9px; background:linear-gradient(135deg, var(--primary), var(--primary-dark));
+    display:flex; align-items:center; justify-content:center; color:#fff; font-family:'Space Grotesk',sans-serif;
+    font-weight:700; font-size:15px; flex-shrink:0;
+  }
+  .brand .name{font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:14px; line-height:1.25;}
+  .brand .name small{display:block; color:var(--muted); font-weight:400; font-size:11px;}
+
+  nav.side-nav{display:flex; flex-direction:column; gap:2px; flex:1;}
+  .nav-btn{
+    display:flex; align-items:center; gap:11px; padding:10px 12px; border-radius:10px; border:none;
+    background:none; color:var(--muted); font-family:'Inter',sans-serif; font-size:13.5px; font-weight:500;
+    cursor:pointer; text-align:left; width:100%;
+  }
+  .nav-btn .ic{width:18px; height:18px; flex-shrink:0; display:inline-flex; align-items:center; justify-content:center;}
+  .nav-btn:hover{background:var(--surface-alt); color:var(--ink);}
+  .nav-btn.active{background:var(--primary-tint); color:var(--primary-dark); font-weight:600;}
+
+  .sidebar-foot{font-size:11px; color:var(--muted); padding:0 8px;}
+
+  /* Main */
+  main{flex:1; padding:28px 36px 60px; min-width:0;}
+  header.top-row{display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:26px; flex-wrap:wrap; gap:14px;}
+  header.top-row h1{font-family:'Space Grotesk',sans-serif; font-size:22px; margin:0 0 4px;}
+  header.top-row .sub{color:var(--muted); font-size:13px;}
+  .top-row .today{font-size:12.5px; color:var(--muted); text-align:right;}
+
+  .view{display:none;} .view.active{display:block;}
+
+  /* Hero + stats */
+  .hero-row{display:grid; grid-template-columns:1.3fr 1fr 1fr; gap:16px; margin-bottom:18px;}
+  .hero-card{
+    background:linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    border-radius:var(--radius); padding:22px 24px; color:#fff; box-shadow:var(--shadow);
+    display:flex; flex-direction:column; justify-content:space-between; min-height:132px;
+  }
+  .hero-card .label{font-size:12.5px; opacity:.85; font-weight:500;}
+  .hero-card .value{font-family:'Space Grotesk',sans-serif; font-size:32px; font-weight:700; margin-top:6px;}
+  .hero-card .split{display:flex; gap:22px; margin-top:14px; font-size:12px; opacity:.9;}
+  .hero-card .split b{display:block; font-family:'IBM Plex Mono',monospace; font-size:14px; font-weight:600;}
+
+  .stat-card{
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+    padding:18px 20px; box-shadow:var(--shadow); display:flex; flex-direction:column; justify-content:space-between;
+  }
+  .stat-card .label{font-size:12px; color:var(--muted); font-weight:500; display:flex; align-items:center; gap:6px;}
+  .stat-card .value{font-family:'Space Grotesk',sans-serif; font-size:24px; font-weight:700; margin-top:8px;}
+  .stat-card.income .value{color:var(--income);}
+  .stat-card.expense .value{color:var(--expense);}
+  .dot{width:8px; height:8px; border-radius:50%; display:inline-block;}
+  .dot.income{background:var(--income);} .dot.expense{background:var(--expense);}
+
+  .cards-secondary{display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:16px; margin-bottom:8px;}
+
+  h2.section-title{font-family:'Space Grotesk',sans-serif; font-size:16px; font-weight:600; margin:30px 0 14px;}
+
+  .panel{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden;}
+
+  /* Form */
+  .form-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:16px 20px; background:var(--surface);
+    border:1px solid var(--line); border-radius:var(--radius); padding:26px; box-shadow:var(--shadow);}
+  .form-grid.wide-first > *:first-child{grid-column:1 / -1;}
+  label{display:block; font-size:12px; font-weight:600; color:var(--muted); margin-bottom:7px;}
+  input, select, textarea{
+    width:100%; font-family:'Inter',sans-serif; font-size:14px; padding:10px 12px;
+    border:1px solid var(--line); border-radius:9px; background:var(--bg); color:var(--ink);
+  }
+  input:focus, select:focus, textarea:focus{outline:none; border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-tint);}
+  .type-toggle{display:flex; gap:8px; flex-wrap:wrap;}
+  .type-toggle button{
+    flex:1; min-width:110px; padding:10px; border:1px solid var(--line); background:var(--surface); cursor:pointer;
+    font-family:'Inter',sans-serif; font-size:12.5px; font-weight:600; border-radius:9px; color:var(--muted);
+  }
+  .type-toggle button.sel-income.active{background:var(--income); color:#fff; border-color:var(--income);}
+  .type-toggle button.sel-expense.active{background:var(--expense); color:#fff; border-color:var(--expense);}
+  .type-toggle button.sel-cash.active, .type-toggle button.sel-bank.active{background:var(--primary); color:#fff; border-color:var(--primary);}
+  .type-toggle button[data-type^="Transfer"].active{background:var(--accent); color:#fff; border-color:var(--accent);}
+
+  .btn{
+    font-family:'Inter',sans-serif; font-size:13px; font-weight:600; background:var(--primary); color:#fff;
+    border:none; padding:11px 22px; border-radius:10px; cursor:pointer;
+  }
+  .btn:hover{background:var(--primary-dark);}
+  .btn.secondary{background:var(--surface); color:var(--primary); border:1px solid var(--primary-tint); box-shadow:none;}
+  .btn.secondary:hover{background:var(--primary-tint);}
+  .btn:disabled{opacity:.5; cursor:default;}
+  .form-actions{grid-column:1/-1; display:flex; justify-content:flex-end; gap:10px; margin-top:4px;}
+
+  .filters{display:flex; gap:12px; flex-wrap:wrap; margin-bottom:18px; align-items:flex-end;}
+  .filters .f{min-width:140px;}
+
+  table.register{width:100%; border-collapse:collapse; background:var(--surface);}
+  table.register th{
+    font-size:11px; text-transform:uppercase; letter-spacing:.04em; font-weight:600;
+    color:var(--muted); background:var(--surface-alt); text-align:left; padding:12px 16px;
+  }
+  table.register td{padding:12px 16px; border-top:1px solid var(--line); font-size:13.5px; vertical-align:middle;}
+  table.register tr:hover td{background:var(--surface-alt);}
+  .amt{font-family:'IBM Plex Mono',monospace; text-align:right; white-space:nowrap; font-weight:500;}
+  .amt.income{color:var(--income);} .amt.expense{color:var(--expense);}
+  .pill{font-size:11px; font-weight:600; padding:3px 10px; border-radius:20px;}
+  .pill.Cash{background:var(--primary-tint); color:var(--primary-dark);}
+  .pill.Bank{background:var(--surface-alt); color:var(--ink); border:1px solid var(--line);}
+  .row-actions button{background:none; border:none; cursor:pointer; color:var(--muted); font-size:12.5px; font-weight:600; margin-right:14px;}
+  .row-actions button:hover{color:var(--primary);}
+  .row-actions .print-link{color:var(--expense);}
+
+  .empty{padding:48px; text-align:center; color:var(--muted); font-size:14px;}
+  .toast{
+    position:fixed; bottom:24px; right:24px; background:var(--ink); color:#fff;
+    padding:12px 20px; border-radius:10px; font-size:13px; box-shadow:var(--shadow); z-index:50;
+    opacity:0; transform:translateY(8px); transition:all .25s;
+  }
+  .toast.show{opacity:1; transform:translateY(0);}
+  .toast.error{background:var(--expense);}
+
+  /* Category chips */
+  .chip-list{display:flex; flex-wrap:wrap; gap:8px;}
+  .chip{padding:7px 13px; border-radius:20px; font-size:13px; font-weight:500;}
+  .chip.income-chip{background:var(--income-tint); color:var(--income);}
+  .chip.expense-chip{background:var(--expense-tint); color:var(--expense);}
+
+  /* Categories */
+  .cat-row{display:flex; align-items:center; justify-content:space-between; padding:9px 12px; border-radius:8px; gap:8px;}
+  .cat-row:hover{background:var(--surface-alt);}
+  .cat-row .cn{font-size:13.5px;}
+  .cat-row .cactions{display:flex; gap:10px;}
+  .cat-row .cactions button{background:none; border:none; cursor:pointer; color:var(--muted); font-size:12px; font-weight:600;}
+  .cat-row .cactions button:hover{color:var(--primary);}
+  .cat-row .cactions .danger{color:var(--expense);}
+  .cat-edit-row{display:flex; align-items:center; gap:8px; padding:8px 12px; background:var(--surface-alt); border-radius:8px;}
+  .cat-edit-row input{flex:1; padding:7px 9px; font-size:13px;}
+
+  /* Ledgers */
+  .party-item{
+    display:flex; align-items:center; justify-content:space-between; padding:13px 14px; border-radius:10px;
+    cursor:pointer; gap:10px;
+  }
+  .party-item:hover{background:var(--surface-alt);}
+  .party-item.active{background:var(--primary-tint);}
+  .party-item .pname{font-weight:600; font-size:13.5px;}
+  .party-item .ptype{font-size:11px; color:var(--muted);}
+  .party-item .pbal{font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:600; white-space:nowrap;}
+  .party-item .pbal.owe-us{color:var(--income);}
+  .party-item .pbal.we-owe{color:var(--expense);}
+  .ledger-summary{display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; padding-bottom:16px; border-bottom:1px solid var(--line);}
+  .ledger-summary h3{font-family:'Space Grotesk',sans-serif; font-size:18px; margin:0 0 4px;}
+  .ledger-summary .bal{font-family:'IBM Plex Mono',monospace; font-size:26px; font-weight:700;}
+  .mini-form{display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-bottom:18px; background:var(--surface-alt); padding:14px 16px; border-radius:12px;}
+  .mini-form .f{min-width:130px;}
+  .mini-form label{margin-bottom:5px;}
+
+  /* Voucher modal */
+  .modal-backdrop{
+    display:none; position:fixed; inset:0; background:rgba(23,26,43,0.55); z-index:100;
+    align-items:center; justify-content:center; padding:24px;
+  }
+  .modal-backdrop.show{display:flex;}
+  .voucher{
+    background:#fff; width:640px; max-width:100%; max-height:90vh; overflow:auto;
+    position:relative; box-shadow:0 24px 64px rgba(0,0,0,0.35); border-radius:18px;
+  }
+  .voucher-inner{padding:34px 38px 26px;}
+  .voucher-head{display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--line); padding-bottom:16px; margin-bottom:18px;}
+  .voucher-head .soc{font-family:'Space Grotesk',sans-serif; font-size:19px; font-weight:700;}
+  .voucher-head .kind{font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#fff;
+    background:var(--expense); padding:5px 12px; border-radius:20px;}
+  .voucher-meta{display:flex; justify-content:space-between; font-size:12.5px; margin-bottom:18px; color:var(--muted);}
+  .voucher-meta b{color:var(--ink); font-family:'IBM Plex Mono',monospace;}
+  .voucher-field{display:flex; padding:10px 0; font-size:14px; border-bottom:1px solid var(--line);}
+  .voucher-field .k{width:170px; font-size:12px; color:var(--muted); font-weight:500;}
+  .voucher-field .v{flex:1; font-weight:600;}
+  .voucher-amount-box{
+    margin-top:18px; background:var(--primary-tint); border-radius:12px; padding:16px 18px; display:flex;
+    justify-content:space-between; align-items:center; gap:12px;
+  }
+  .voucher-amount-box .words{font-size:13px; color:var(--primary-dark); max-width:65%;}
+  .voucher-amount-box .figure{font-family:'IBM Plex Mono',monospace; font-size:24px; font-weight:700; color:var(--primary-dark);}
+  .voucher-sign{display:flex; justify-content:space-between; margin-top:46px;}
+  .voucher-sign div{text-align:center; width:150px; border-top:1px solid var(--line); padding-top:7px;
+    font-size:11px; color:var(--muted); font-weight:500;}
+  .modal-actions{display:flex; justify-content:flex-end; gap:10px; padding:16px 38px 26px;}
+
+  .print-only-title{display:none;}
+
+  @media print{
+    @page{ margin:12mm; }
+
+    /* Voucher printing */
+    body.voucher-print-mode *{visibility:hidden;}
+    body.voucher-print-mode .voucher, body.voucher-print-mode .voucher *{visibility:visible;}
+    body.voucher-print-mode .voucher{
+      position:fixed; top:0; left:0; width:210mm; height:148.5mm; max-height:148.5mm; max-width:210mm;
+      box-shadow:none; border-radius:0; overflow:hidden;
+    }
+    body.voucher-print-mode .voucher-inner{padding:9mm 14mm 6mm; height:148.5mm; box-sizing:border-box; display:flex; flex-direction:column;}
+    body.voucher-print-mode .voucher-head{padding-bottom:8px; margin-bottom:10px;}
+    body.voucher-print-mode .voucher-head .soc{font-size:17px;}
+    body.voucher-print-mode .voucher-meta{margin-bottom:9px; font-size:11px;}
+    body.voucher-print-mode .voucher-field{padding:6px 0; font-size:12px;}
+    body.voucher-print-mode .voucher-field .k{width:140px; font-size:10px;}
+    body.voucher-print-mode .voucher-amount-box{margin-top:9px; padding:9px 13px;}
+    body.voucher-print-mode .voucher-amount-box .words{font-size:11px;}
+    body.voucher-print-mode .voucher-amount-box .figure{font-size:18px;}
+    body.voucher-print-mode .voucher-sign{margin-top:auto; padding-top:14px;}
+    body.voucher-print-mode .voucher-sign div{width:120px; font-size:9px;}
+    body.voucher-print-mode .modal-actions{display:none;}
+
+    /* Register printing — paginate every 30 rows */
+    body.register-print-mode *{visibility:hidden;}
+    body.register-print-mode #registerPrintArea, body.register-print-mode #registerPrintArea *{visibility:visible;}
+    body.register-print-mode #registerPrintArea{position:absolute; top:0; left:0; width:100%;}
+    body.register-print-mode .print-only-title{
+      display:block; font-family:'Space Grotesk',sans-serif; font-size:15px; font-weight:600;
+      margin-bottom:10px;
+    }
+    body.register-print-mode .panel{box-shadow:none; border:none;}
+    body.register-print-mode table.register{font-size:11.5px;}
+    body.register-print-mode table.register th{padding:8px 10px;}
+    body.register-print-mode table.register td{padding:7px 10px;}
+    body.register-print-mode table.register thead{display:table-header-group;}
+    body.register-print-mode table.register tr{page-break-inside:avoid; break-inside:avoid;}
+    body.register-print-mode table.register tbody tr:nth-child(30n){page-break-after:always; break-after:page;}
+
+    /* Single-party ledger printing */
+    body.ledger-print-mode *{visibility:hidden;}
+    body.ledger-print-mode #partyLedgerPrintArea, body.ledger-print-mode #partyLedgerPrintArea *{visibility:visible;}
+    body.ledger-print-mode #partyLedgerPrintArea{position:absolute; top:0; left:0; width:100%;}
+    body.ledger-print-mode .print-only-title{
+      display:block; font-family:'Space Grotesk',sans-serif; font-size:14px; font-weight:600; margin-bottom:14px;
+    }
+    body.ledger-print-mode .no-print{display:none !important;}
+    body.ledger-print-mode .ledger-summary{border-bottom:2px solid var(--ink); padding-bottom:12px; margin-bottom:16px;}
+    body.ledger-print-mode table.register{font-size:11.5px;}
+    body.ledger-print-mode table.register th{padding:8px 10px;}
+    body.ledger-print-mode table.register td{padding:7px 10px;}
+    body.ledger-print-mode table.register thead{display:table-header-group;}
+    body.ledger-print-mode table.register tr{page-break-inside:avoid; break-inside:avoid;}
+    body.ledger-print-mode table.register tbody tr:nth-child(30n){page-break-after:always; break-after:page;}
+
+    /* All-parties ledger summary printing */
+    body.ledger-summary-print-mode *{visibility:hidden;}
+    body.ledger-summary-print-mode #printLedgerSummaryTitle,
+    body.ledger-summary-print-mode #printLedgerSummaryTitle *,
+    body.ledger-summary-print-mode #ledgerSummaryPrintTable,
+    body.ledger-summary-print-mode #ledgerSummaryPrintTable *{visibility:visible;}
+    body.ledger-summary-print-mode #printLedgerSummaryTitle{
+      display:block; font-family:'Space Grotesk',sans-serif; font-size:15px; font-weight:600;
+      position:absolute; top:0; left:0; width:100%; margin-bottom:10px;
+    }
+    body.ledger-summary-print-mode #ledgerSummaryPrintTable{
+      display:block !important; position:absolute; top:26px; left:0; width:100%;
+    }
+    body.ledger-summary-print-mode table.register{font-size:11.5px;}
+    body.ledger-summary-print-mode table.register th{padding:8px 10px;}
+    body.ledger-summary-print-mode table.register td{padding:7px 10px;}
+    body.ledger-summary-print-mode table.register thead{display:table-header-group;}
+    body.ledger-summary-print-mode table.register tr{page-break-inside:avoid; break-inside:avoid;}
+    body.ledger-summary-print-mode table.register tbody tr:nth-child(30n){page-break-after:always; break-after:page;}
+  }
+
+  @media (max-width:900px){
+    .hero-row{grid-template-columns:1fr;}
+  }
+  @media (max-width:720px){
+    .app{flex-direction:column;}
+    aside.sidebar{width:100%; height:auto; position:relative; flex-direction:row; align-items:center; overflow-x:auto; padding:14px 16px;}
+    nav.side-nav{flex-direction:row;}
+    .sidebar-foot{display:none;}
+    main{padding:20px;}
+    .form-grid{grid-template-columns:1fr;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="mark">BSS</div>
+      <div class="name" id="societyNameHeader">Balaji Service<small>Cash &amp; Bank</small></div>
+    </div>
+    <nav class="side-nav">
+      <button class="nav-btn active" data-view="dashboard"><span class="ic">◆</span>Dashboard</button>
+      <button class="nav-btn" data-view="add"><span class="ic">+</span>Add Entry</button>
+      <button class="nav-btn" data-view="register"><span class="ic">≡</span>Register</button>
+      <button class="nav-btn" data-view="ledgers"><span class="ic">§</span>Ledgers</button>
+      <button class="nav-btn" data-view="categories"><span class="ic">▤</span>Categories</button>
+      <button class="nav-btn" data-view="accounts" id="navAccounts" style="display:none;"><span class="ic">◈</span>Accounts</button>
+      <button class="nav-btn" data-view="users" id="navUsers" style="display:none;"><span class="ic">☺</span>Users</button>
+      <button class="nav-btn" data-view="settings" id="navSettings"><span class="ic">⚙</span>Settings</button>
+    </nav>
+    <div class="sidebar-foot">
+      <div id="entryCount">—</div>
+      <div id="currentUserBox" style="display:none; margin-top:10px; padding-top:10px; border-top:1px solid var(--line);">
+        <div style="font-weight:600; color:var(--ink);" id="currentUserName"></div>
+        <div id="currentUserRole"></div>
+        <button class="nav-btn" id="logoutBtn" style="padding:6px 0; color:var(--expense);">Log Out</button>
+      </div>
+    </div>
+  </aside>
+
+  <main>
+
+    <!-- DASHBOARD -->
+    <div class="view active" id="view-dashboard">
+      <header class="top-row">
+        <div>
+          <h1>Dashboard</h1>
+          <div class="sub">Overview of cash and bank position</div>
+        </div>
+        <div class="today" id="clockDate"></div>
+      </header>
+
+      <div class="hero-row">
+        <div class="hero-card">
+          <div class="label">Total Funds</div>
+          <div class="value" id="cardTotal">—</div>
+          <div class="split" id="heroAccountSplit"></div>
+        </div>
+        <div class="stat-card income">
+          <div class="label"><span class="dot income"></span>This Month — Income</div>
+          <div class="value" id="cardMonthIncome">—</div>
+        </div>
+        <div class="stat-card expense">
+          <div class="label"><span class="dot expense"></span>This Month — Expense</div>
+          <div class="value" id="cardMonthExpense">—</div>
+        </div>
+      </div>
+
+      <h2 class="section-title" style="margin-top:6px;">Accounts</h2>
+      <div class="cards-secondary" id="accountCards" style="margin-bottom:26px;"></div>
+
+      <div class="cards-secondary">
+        <div class="stat-card">
+          <div class="label">This Month — Net</div>
+          <div class="value" id="cardMonthNet">—</div>
+        </div>
+        <div class="stat-card income">
+          <div class="label"><span class="dot income"></span>Total Receivables</div>
+          <div class="value" id="cardReceivables">—</div>
+        </div>
+        <div class="stat-card expense">
+          <div class="label"><span class="dot expense"></span>Total Payables</div>
+          <div class="value" id="cardPayables">—</div>
+        </div>
+      </div>
+
+      <h2 class="section-title">Recent Entries</h2>
+      <div class="panel" id="recentWrap"><div class="empty">Loading…</div></div>
+    </div>
+
+    <!-- ADD ENTRY -->
+    <div class="view" id="view-add">
+      <header class="top-row"><div><h1>Add Entry</h1><div class="sub">Record a new income, expense, or transfer</div></div></header>
+      <form class="form-grid wide-first" id="addForm">
+        <div>
+          <label>Entry Type</label>
+          <div class="type-toggle">
+            <button type="button" class="sel-income active" data-type="Income">Income</button>
+            <button type="button" class="sel-expense" data-type="Expense">Expense</button>
+            <button type="button" data-type="Transfer">Transfer</button>
+          </div>
+        </div>
+        <div id="accountField">
+          <label id="accountFieldLabel">Account</label>
+          <select id="fAccount"></select>
+        </div>
+        <div id="toAccountField" style="display:none;">
+          <label>To Account</label>
+          <select id="fToAccount"></select>
+        </div>
+        <div>
+          <label>Date</label>
+          <input type="date" id="fDate" required>
+        </div>
+        <div id="categoryField">
+          <label>Category</label>
+          <select id="fCategory"></select>
+        </div>
+        <div>
+          <label id="partyLabel">Received From / Paid To</label>
+          <input type="text" id="fParty" placeholder="Name">
+        </div>
+        <div>
+          <label>Amount (₹)</label>
+          <input type="number" id="fAmount" step="0.01" min="0" required>
+        </div>
+        <div style="grid-column:1/-1;">
+          <label>Description</label>
+          <textarea id="fDescription" rows="2" placeholder="Particulars of this entry"></textarea>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn">Save Entry</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- REGISTER -->
+    <div class="view" id="view-register">
+      <header class="top-row"><div><h1>Register</h1><div class="sub">All recorded transactions</div></div></header>
+      <div class="filters">
+        <div class="f"><label>Account</label>
+          <select id="filterAccount"><option>All</option></select>
+        </div>
+        <div class="f"><label>Type</label>
+          <select id="filterType"><option>All</option><option>Income</option><option>Expense</option>
+            <option value="TransferOut">Transfer Out</option><option value="TransferIn">Transfer In</option></select>
+        </div>
+        <div class="f"><label>From</label><input type="date" id="filterFrom"></div>
+        <div class="f"><label>To</label><input type="date" id="filterTo"></div>
+        <div class="f"><button class="btn secondary" id="applyFilters">Apply</button></div>
+        <div class="f"><button class="btn secondary" id="printRegister">Print Register</button></div>
+      </div>
+      <div id="registerPrintArea">
+        <div class="print-only-title" id="printRegisterTitle"></div>
+        <div class="panel" id="registerWrap"><div class="empty">Loading…</div></div>
+      </div>
+    </div>
+
+    <!-- LEDGERS -->
+    <div class="view" id="view-ledgers">
+      <header class="top-row">
+        <div><h1>Ledgers</h1><div class="sub">Credit accounts — amounts owed to and by parties</div></div>
+        <div style="display:flex; gap:10px;">
+          <button class="btn secondary" id="printLedgerSummaryBtn">Print Summary</button>
+          <button class="btn secondary" id="newPartyBtn">+ New Party</button>
+        </div>
+      </header>
+      <div class="print-only-title" id="printLedgerSummaryTitle"></div>
+      <div id="ledgerSummaryPrintTable" style="display:none;"></div>
+
+      <form class="form-grid wide-first" id="partyForm" style="display:none; margin-bottom:22px;">
+        <div>
+          <label>Party Name</label>
+          <input type="text" id="pName" required>
+        </div>
+        <div>
+          <label>Type</label>
+          <div class="type-toggle">
+            <button type="button" class="sel-income active" data-ptype="Debtor">Debtor (owes us)</button>
+            <button type="button" class="sel-expense" data-ptype="Creditor">Creditor (we owe)</button>
+          </div>
+        </div>
+        <div>
+          <label>Opening Balance (₹)</label>
+          <input type="number" id="pOpening" step="0.01" value="0">
+        </div>
+        <div>
+          <label>Contact</label>
+          <input type="text" id="pContact" placeholder="Phone / email">
+        </div>
+        <div style="grid-column:1/-1;">
+          <label>Notes</label>
+          <input type="text" id="pNotes">
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn secondary" id="cancelParty">Cancel</button>
+          <button type="submit" class="btn">Save Party</button>
+        </div>
+      </form>
+
+      <div style="display:grid; grid-template-columns:320px 1fr; gap:20px; align-items:start;">
+        <div class="panel" id="partyListWrap" style="padding:8px;"><div class="empty">Loading…</div></div>
+        <div class="panel" id="partyDetailWrap" style="padding:24px;">
+          <div class="empty">Select a party on the left to view their ledger.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CATEGORIES -->
+    <div class="view" id="view-categories">
+      <header class="top-row"><div><h1>Categories</h1><div class="sub">Manage income and expense categories</div></div></header>
+      <div style="display:flex; gap:32px; flex-wrap:wrap; margin-bottom:26px;">
+        <div class="panel" style="flex:1; min-width:280px; padding:8px;">
+          <div style="font-size:12px; font-weight:700; color:var(--income); text-transform:uppercase; letter-spacing:.04em; padding:12px 12px 6px;">Income</div>
+          <div id="incomeCatList"></div>
+        </div>
+        <div class="panel" style="flex:1; min-width:280px; padding:8px;">
+          <div style="font-size:12px; font-weight:700; color:var(--expense); text-transform:uppercase; letter-spacing:.04em; padding:12px 12px 6px;">Expense</div>
+          <div id="expenseCatList"></div>
+        </div>
+      </div>
+      <form class="form-grid" id="catForm" style="max-width:520px;">
+        <div>
+          <label>Type</label>
+          <select id="catType"><option>Income</option><option>Expense</option></select>
+        </div>
+        <div>
+          <label>New Category Name</label>
+          <input type="text" id="catName" required>
+        </div>
+        <div class="form-actions"><button class="btn" type="submit">Add Category</button></div>
+      </form>
+    </div>
+
+    <!-- SETTINGS -->
+    <div class="view" id="view-settings">
+      <header class="top-row"><div><h1>Settings</h1><div class="sub">Connect your Google Sheet backend</div></div></header>
+      <div class="form-grid wide-first" style="max-width:640px;">
+        <div>
+          <label>Apps Script Web App URL</label>
+          <input type="text" id="apiUrlInput" placeholder="https://script.google.com/macros/s/XXXX/exec">
+        </div>
+        <div class="form-actions">
+          <button class="btn secondary" id="saveApiUrl">Save &amp; Reload</button>
+        </div>
+      </div>
+      <p style="color:var(--muted); font-size:13px; max-width:600px; margin-top:16px;">
+        Paste the deployed Web App URL from your Apps Script project (Deploy → New deployment → Web app).
+        Saved in this browser so you won't need to paste it again on this device —
+        you'll still sign in each visit, but the connection itself is remembered.
+      </p>
+    </div>
+
+    <!-- ACCOUNTS -->
+    <div class="view" id="view-accounts">
+      <header class="top-row"><div><h1>Accounts</h1><div class="sub">Cash and bank accounts used across the register</div></div></header>
+      <div class="panel" id="accountsListWrap" style="margin-bottom:24px; padding:8px;"><div class="empty">Loading…</div></div>
+      <form class="form-grid" id="accountForm" style="max-width:560px;">
+        <div>
+          <label>Account Name</label>
+          <input type="text" id="aName" placeholder="e.g. SBI Current A/c 1234" required>
+        </div>
+        <div>
+          <label>Type</label>
+          <select id="aType"><option>Bank</option><option>Cash</option></select>
+        </div>
+        <div>
+          <label>Opening Balance (₹)</label>
+          <input type="number" id="aOpening" step="0.01" value="0">
+        </div>
+        <div>
+          <label>Notes</label>
+          <input type="text" id="aNotes" placeholder="Account no., branch, etc.">
+        </div>
+        <div class="form-actions"><button class="btn" type="submit">Add Account</button></div>
+      </form>
+    </div>
+
+    <!-- USERS -->
+    <div class="view" id="view-users">
+      <header class="top-row"><div><h1>Users</h1><div class="sub">Admin and staff accounts for this app</div></div></header>
+      <div class="panel" id="usersListWrap" style="margin-bottom:24px; padding:8px;"><div class="empty">Loading…</div></div>
+      <form class="form-grid" id="userForm" style="max-width:560px;">
+        <div>
+          <label>Username</label>
+          <input type="text" id="uUsername" required>
+        </div>
+        <div>
+          <label>PIN / Password</label>
+          <input type="text" id="uPin" required>
+        </div>
+        <div>
+          <label>Display Name</label>
+          <input type="text" id="uDisplayName">
+        </div>
+        <div>
+          <label>Role</label>
+          <select id="uRole"><option>User</option><option>Admin</option></select>
+        </div>
+        <div class="form-actions"><button class="btn" type="submit">Add User</button></div>
+      </form>
+    </div>
+
+  </main>
+</div>
+
+<!-- Login overlay -->
+<div class="modal-backdrop" id="loginOverlay">
+  <div class="voucher" style="width:380px;">
+    <div class="voucher-inner" style="padding:34px 32px;">
+      <div style="font-family:'Space Grotesk',sans-serif; font-size:19px; font-weight:700; margin-bottom:4px;">Sign in</div>
+      <div style="color:var(--muted); font-size:13px; margin-bottom:22px;" id="loginSocietyLine">Balaji Service Society</div>
+      <form id="loginForm">
+        <div style="margin-bottom:14px;"><label>Username</label><input type="text" id="loginUsername" required autocomplete="username"></div>
+        <div style="margin-bottom:18px;"><label>PIN / Password</label><input type="password" id="loginPin" required autocomplete="current-password"></div>
+        <button class="btn" type="submit" style="width:100%;">Sign In</button>
+        <div id="loginError" style="color:var(--expense); font-size:12.5px; margin-top:10px; display:none;"></div>
+      </form>
+      <div style="margin-top:18px; font-size:12px; color:var(--muted); text-align:center;">
+        Wrong Google Sheet? <a href="#" id="loginChangeUrl" style="color:var(--primary);">Change connection URL</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Voucher modal -->
+<div class="modal-backdrop" id="voucherModal">
+  <div>
+    <div class="voucher">
+      <div class="voucher-inner" id="voucherContent"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn secondary" id="closeVoucher">Close</button>
+      <button class="btn" id="printVoucherBtn">Print Voucher</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Entry modal -->
+<div class="modal-backdrop" id="editEntryModal">
+  <div>
+    <div class="voucher" style="width:560px;">
+      <div class="voucher-inner" style="padding:30px 32px;">
+        <div style="font-family:'Space Grotesk',sans-serif; font-size:18px; font-weight:700; margin-bottom:18px;">Edit Entry</div>
+        <form class="form-grid wide-first" id="editEntryForm" style="box-shadow:none; border:none; padding:0;">
+          <input type="hidden" id="eeId">
+          <div>
+            <label>Date</label>
+            <input type="date" id="eeDate" required>
+          </div>
+          <div>
+            <label>Account</label>
+            <select id="eeAccount"></select>
+          </div>
+          <div>
+            <label>Category</label>
+            <select id="eeCategory"></select>
+          </div>
+          <div>
+            <label id="eePartyLabel">Received From / Paid To</label>
+            <input type="text" id="eeParty">
+          </div>
+          <div>
+            <label>Amount (₹)</label>
+            <input type="number" id="eeAmount" step="0.01" min="0" required>
+          </div>
+          <div style="grid-column:1/-1;">
+            <label>Description</label>
+            <textarea id="eeDescription" rows="2"></textarea>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn secondary" id="cancelEditEntry">Cancel</button>
+            <button type="submit" class="btn">Save Changes</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// PASTE YOUR APPS SCRIPT WEB APP URL BELOW (between the quotes).
+// Deploy → Manage deployments → copy the URL ending in /exec.
+// If you'd rather not edit this file, leave it blank — you can
+// still paste the URL into the app's Settings tab instead.
+// ============================================================
+const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbzRtRdSvfPDq2jNKu1qITw-0u54TyAVHrkBbnP61WXOkh6GIS503ecS_-9ybPWT1pkB/exec';
+
+let API_URL = localStorage.getItem('bss_api_url') || DEFAULT_API_URL || '';
+let currentUser = JSON.parse(sessionStorage.getItem('bss_user') || 'null');
+let STATE = { categories:[], transactions:[], accounts:[], societyName:'Balaji Service Society' };
+
+function fmt(n){ return '₹' + (Number(n)||0).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+function isAdmin(){ return !!currentUser && currentUser.role === 'Admin'; }
+function toast(msg, isError){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast show' + (isError ? ' error' : '');
+  setTimeout(()=> t.className='toast', 2600);
+}
+
+async function callApi(action, payload){
+  if(!API_URL){ toast('Set your Apps Script URL in Settings first.', true); throw new Error('No API URL'); }
+  payload = Object.assign({action}, payload||{});
+  if(currentUser){ payload.actorRole = currentUser.role; payload.actorUsername = currentUser.username; }
+  const res = await fetch(API_URL, { method:'POST', body: JSON.stringify(payload) });
+  const data = await res.json();
+  if(!data.ok) throw new Error(data.error || 'Request failed');
+  return data.data;
+}
+
+// ---- Nav ----
+document.querySelectorAll('.nav-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('view-'+btn.dataset.view).classList.add('active');
+    if(btn.dataset.view === 'register') loadRegister();
+    if(btn.dataset.view === 'ledgers') loadParties();
+    if(btn.dataset.view === 'users') loadUsers();
+    if(btn.dataset.view === 'accounts') loadAccountsView();
+  });
+});
+
+// ---- Clock ----
+function updateClock(){
+  document.getElementById('clockDate').textContent = new Date().toLocaleDateString('en-IN', {weekday:'long'}) + ', ' + formatDate(new Date());
+}
+updateClock();
+
+// ---- Add form toggles ----
+let currentType = 'Income';
+document.querySelectorAll('#addForm .type-toggle button[data-type]').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    document.querySelectorAll('#addForm .type-toggle button[data-type]').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    currentType = b.dataset.type;
+    const isTransfer = currentType === 'Transfer';
+    document.getElementById('categoryField').style.display = isTransfer ? 'none' : 'block';
+    document.getElementById('toAccountField').style.display = isTransfer ? 'block' : 'none';
+    document.getElementById('accountFieldLabel').textContent = isTransfer ? 'From Account' : 'Account';
+    document.getElementById('partyLabel').textContent = currentType === 'Income' ? 'Received From' : (currentType === 'Expense' ? 'Paid To' : 'Note');
+    populateCategoryDropdown();
+  });
+});
+
+function accountOptionsHtml(){
+  return STATE.accounts.filter(a=>a.Active).map(a=>'<option value="'+escapeHtml(a.Name)+'">'+escapeHtml(a.Name)+' ('+a.Type+')</option>').join('');
+}
+function populateAccountDropdowns(){
+  const opts = accountOptionsHtml();
+  ['fAccount','fToAccount','filterAccount'].forEach(id=>{
+    const sel = document.getElementById(id);
+    const keepAll = id === 'filterAccount';
+    sel.innerHTML = (keepAll ? '<option>All</option>' : '') + opts;
+  });
+}
+
+function populateCategoryDropdown(){
+  const sel = document.getElementById('fCategory');
+  sel.innerHTML = '';
+  STATE.categories.filter(c=>c.Type===currentType).forEach(c=>{
+    const o = document.createElement('option'); o.value = c.Category; o.textContent = c.Category; sel.appendChild(o);
+  });
+}
+
+document.getElementById('addForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const isTransfer = currentType === 'Transfer';
+  const payload = {
+    date: document.getElementById('fDate').value,
+    account: document.getElementById('fAccount').value,
+    toAccount: isTransfer ? document.getElementById('fToAccount').value : undefined,
+    type: currentType,
+    category: isTransfer ? '' : document.getElementById('fCategory').value,
+    description: document.getElementById('fDescription').value,
+    amount: document.getElementById('fAmount').value,
+    party: document.getElementById('fParty').value,
+    enteredBy: currentUser ? currentUser.username : ''
+  };
+  if(isTransfer) payload.fromAccount = payload.account;
+  if(!payload.date || !payload.amount){ toast('Date and amount are required.', true); return; }
+  if(isTransfer && payload.fromAccount === payload.toAccount){ toast('From and To accounts must be different.', true); return; }
+  try{
+    const res = await callApi('add', payload);
+    toast('Entry saved — ' + res.refNo);
+    if(currentType === 'Expense'){
+      const shouldPrint = confirm('Print voucher for this expense now?');
+      if(shouldPrint){ await openVoucher(res.id); }
+    }
+    document.getElementById('addForm').reset();
+    document.getElementById('fDate').value = todayISO();
+    await loadInit();
+  }catch(err){ toast(err.message, true); }
+});
+
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+
+// ---- Dashboard ----
+async function loadInit(){
+  try{
+    const data = await callApi('init');
+    STATE.categories = data.categories;
+    STATE.accounts = data.accounts;
+    STATE.societyName = data.societyName;
+    document.getElementById('entryCount').textContent = data.transactionCount + ' entries on file';
+    document.getElementById('cardTotal').textContent = fmt(data.totalFunds);
+    document.getElementById('heroAccountSplit').innerHTML = data.accounts.filter(a=>a.Active)
+      .map(a=>'<span>'+escapeHtml(a.Name)+'<b>'+fmt(a.Balance)+'</b></span>').join('');
+    document.getElementById('accountCards').innerHTML = data.accounts.filter(a=>a.Active).map(a=>
+      '<div class="stat-card"><div class="label">' + escapeHtml(a.Name) + ' <span style="color:var(--muted); font-weight:400;">(' + a.Type + ')</span></div>' +
+      '<div class="value">' + fmt(a.Balance) + '</div></div>'
+    ).join('') || '<div class="empty">No accounts yet — add one in the Accounts tab.</div>';
+    document.getElementById('cardMonthIncome').textContent = fmt(data.monthSummary.income);
+    document.getElementById('cardMonthExpense').textContent = fmt(data.monthSummary.expense);
+    document.getElementById('cardMonthNet').textContent = fmt(data.monthSummary.net);
+    document.getElementById('cardReceivables').textContent = fmt(data.ledgerSummary.receivables);
+    document.getElementById('cardPayables').textContent = fmt(data.ledgerSummary.payables);
+    populateCategoryDropdown();
+    populateAccountDropdowns();
+    renderCategoryLists();
+    await loadRecent();
+  }catch(err){ toast(err.message, true); }
+}
+
+async function loadRecent(){
+  try{
+    const list = await callApi('list', {});
+    const recent = list.slice(0,8);
+    document.getElementById('recentWrap').innerHTML = recent.length ? renderTable(recent, false) : '<div class="empty">No entries yet. Add your first entry to get started.</div>';
+  }catch(err){ /* silent on dashboard */ }
+}
+
+let editingCategoryId = null;
+
+function categoryRowHtml(c){
+  if(c.ID === editingCategoryId){
+    return '<div class="cat-edit-row">' +
+      '<input type="text" id="ecName" value="'+escapeHtml(c.Category)+'">' +
+      '<button class="btn" style="padding:6px 12px; font-size:11.5px;" onclick="saveCategoryEdit(\''+c.ID+'\')">Save</button>' +
+      '<button class="btn secondary" style="padding:6px 12px; font-size:11.5px;" onclick="cancelCategoryEdit()">Cancel</button>' +
+      '</div>';
+  }
+  const admin = isAdmin();
+  return '<div class="cat-row"><span class="cn">' + escapeHtml(c.Category) + '</span>' +
+    (admin ? ('<span class="cactions"><button onclick="editCategory(\''+c.ID+'\')">Edit</button>' +
+      '<button class="danger" onclick="deleteCategory(\''+c.ID+'\')">Delete</button></span>') : '') +
+    '</div>';
+}
+
+function renderCategoryLists(){
+  const inc = STATE.categories.filter(c=>c.Type==='Income');
+  const exp = STATE.categories.filter(c=>c.Type==='Expense');
+  document.getElementById('incomeCatList').innerHTML = inc.map(categoryRowHtml).join('') || '<div class="cat-row" style="color:var(--muted); font-size:13px;">None yet</div>';
+  document.getElementById('expenseCatList').innerHTML = exp.map(categoryRowHtml).join('') || '<div class="cat-row" style="color:var(--muted); font-size:13px;">None yet</div>';
+}
+
+function editCategory(id){ editingCategoryId = id; renderCategoryLists(); }
+function cancelCategoryEdit(){ editingCategoryId = null; renderCategoryLists(); }
+
+async function saveCategoryEdit(id){
+  try{
+    await callApi('updateCategory', { id, category: document.getElementById('ecName').value.trim() });
+    toast('Category updated');
+    editingCategoryId = null;
+    await loadInit();
+  }catch(err){ toast(err.message, true); }
+}
+
+async function deleteCategory(id){
+  if(!confirm('Delete this category? Past entries keep their existing label; only new entries lose it from the picker.')) return;
+  try{
+    await callApi('deleteCategory', {id});
+    toast('Category deleted');
+    await loadInit();
+  }catch(err){ toast(err.message, true); }
+}
+
+function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+function typeLabel(t){
+  return {Income:'Income', Expense:'Expense', TransferOut:'Transfer Out', TransferIn:'Transfer In'}[t] || t;
+}
+
+function accountTypeOf(name){
+  const a = STATE.accounts.find(a=>a.Name===name);
+  return a ? a.Type : 'Bank';
+}
+
+function renderTable(rows, withActions){
+  let html = '<table class="register"><thead><tr>' +
+    '<th>Date</th><th>Ref No.</th><th>Account</th><th>Type</th><th>Category</th><th>Particulars</th><th style="text-align:right;">Amount</th>' +
+    (withActions ? '<th></th>' : '') + '</tr></thead><tbody>';
+  rows.forEach(t=>{
+    const isIncome = t.Type === 'Income' || t.Type === 'TransferIn';
+    const isExpense = t.Type === 'Expense' || t.Type === 'TransferOut';
+    const isRealExpense = t.Type === 'Expense';
+    const isPlainEntry = (t.Type === 'Income' || t.Type === 'Expense') && !t.LinkedTxnID;
+    html += '<tr>' +
+      '<td>' + formatDate(t.Date) + '</td>' +
+      '<td style="font-family:\'IBM Plex Mono\',monospace; color:var(--muted);">' + escapeHtml(t.RefNo) + '</td>' +
+      '<td><span class="pill ' + (accountTypeOf(t.Account)==='Cash'?'Cash':'Bank') + '">' + escapeHtml(t.Account) + '</span></td>' +
+      '<td>' + typeLabel(t.Type) + '</td>' +
+      '<td>' + escapeHtml(t.Category) + '</td>' +
+      '<td>' + escapeHtml(t.Description || t.Party || '') + '</td>' +
+      '<td class="amt ' + (isIncome?'income':(isExpense?'expense':'')) + '">' + (isExpense ? '−' : (isIncome?'+':'')) + fmt(t.Amount) + '</td>' +
+      (withActions ? ('<td class="row-actions">' +
+        (isRealExpense ? '<button class="print-link" onclick="openVoucher(\''+t.ID+'\')">Print Voucher</button>' : '') +
+        (isAdmin() && isPlainEntry ? '<button onclick="openEditEntry(\''+t.ID+'\')">Edit</button>' : '') +
+        (isAdmin() ? '<button onclick="deleteEntry(\''+t.ID+'\')">Delete</button>' : '') + '</td>') : '') +
+      '</tr>';
+  });
+  html += '</tbody></table>';
+  return html;
+}
+
+function formatDate(d){
+  const dt = new Date(d);
+  if(isNaN(dt)) return d;
+  const dd = String(dt.getDate()).padStart(2,'0');
+  const mm = String(dt.getMonth()+1).padStart(2,'0');
+  const yyyy = dt.getFullYear();
+  return dd + '/' + mm + '/' + yyyy;
+}
+
+// ---- Register ----
+async function loadRegister(){
+  document.getElementById('registerWrap').innerHTML = '<div class="empty">Loading…</div>';
+  try{
+    const payload = {
+      account: document.getElementById('filterAccount').value,
+      type: document.getElementById('filterType').value,
+      from: document.getElementById('filterFrom').value,
+      to: document.getElementById('filterTo').value
+    };
+    const list = await callApi('list', payload);
+    STATE.transactions = list;
+    document.getElementById('registerWrap').innerHTML = list.length ? renderTable(list, true) : '<div class="empty">No entries match these filters.</div>';
+  }catch(err){ toast(err.message, true); document.getElementById('registerWrap').innerHTML = '<div class="empty">Could not load register.</div>'; }
+}
+document.getElementById('applyFilters').addEventListener('click', loadRegister);
+document.getElementById('printRegister').addEventListener('click', ()=>{
+  const acc = document.getElementById('filterAccount').value;
+  const typ = document.getElementById('filterType').value;
+  const from = document.getElementById('filterFrom').value;
+  const to = document.getElementById('filterTo').value;
+  let title = STATE.societyName + ' — Cash & Bank Register';
+  const bits = [];
+  if(acc !== 'All') bits.push(acc);
+  if(typ !== 'All') bits.push(typeLabel(typ));
+  if(from) bits.push('From ' + formatDate(from));
+  if(to) bits.push('To ' + formatDate(to));
+  if(bits.length) title += ' (' + bits.join(', ') + ')';
+  document.getElementById('printRegisterTitle').textContent = title;
+  document.body.classList.add('register-print-mode');
+  window.print();
+});
+window.addEventListener('afterprint', ()=>{
+  document.body.classList.remove('register-print-mode', 'voucher-print-mode', 'ledger-print-mode', 'ledger-summary-print-mode');
+});
+
+async function deleteEntry(id){
+  if(!confirm('Delete this entry? This cannot be undone.')) return;
+  try{ await callApi('delete', {id}); toast('Entry deleted'); loadRegister(); loadInit(); }
+  catch(err){ toast(err.message, true); }
+}
+
+// ---- Edit Entry ----
+function openEditEntry(id){
+  const t = (STATE.transactions || []).find(r => r.ID === id);
+  if(!t){ toast('Could not find that entry — refresh the register and try again.', true); return; }
+
+  document.getElementById('eeId').value = t.ID;
+  document.getElementById('eeDate').value = new Date(t.Date).toISOString().slice(0,10);
+  document.getElementById('eeAmount').value = t.Amount;
+  document.getElementById('eeDescription').value = t.Description || '';
+  document.getElementById('eeParty').value = t.Party || '';
+  document.getElementById('eePartyLabel').textContent = t.Type === 'Income' ? 'Received From' : 'Paid To';
+
+  const accSel = document.getElementById('eeAccount');
+  accSel.innerHTML = accountOptionsHtml();
+  if(![...accSel.options].some(o=>o.value===t.Account)){
+    accSel.insertAdjacentHTML('beforeend', '<option value="'+escapeHtml(t.Account)+'">'+escapeHtml(t.Account)+' (inactive)</option>');
+  }
+  accSel.value = t.Account;
+
+  const catSel = document.getElementById('eeCategory');
+  catSel.innerHTML = STATE.categories.filter(c=>c.Type===t.Type)
+    .map(c=>'<option value="'+escapeHtml(c.Category)+'">'+escapeHtml(c.Category)+'</option>').join('');
+  if(![...catSel.options].some(o=>o.value===t.Category)){
+    catSel.insertAdjacentHTML('beforeend', '<option value="'+escapeHtml(t.Category)+'">'+escapeHtml(t.Category)+'</option>');
+  }
+  catSel.value = t.Category;
+
+  document.getElementById('editEntryModal').classList.add('show');
+}
+document.getElementById('cancelEditEntry').addEventListener('click', ()=>{
+  document.getElementById('editEntryModal').classList.remove('show');
+});
+document.getElementById('editEntryForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  try{
+    await callApi('update', {
+      id: document.getElementById('eeId').value,
+      date: document.getElementById('eeDate').value,
+      account: document.getElementById('eeAccount').value,
+      category: document.getElementById('eeCategory').value,
+      description: document.getElementById('eeDescription').value,
+      amount: document.getElementById('eeAmount').value,
+      party: document.getElementById('eeParty').value
+    });
+    toast('Entry updated');
+    document.getElementById('editEntryModal').classList.remove('show');
+    loadRegister();
+    loadInit();
+  }catch(err){ toast(err.message, true); }
+});
+
+// ---- Categories ----
+document.getElementById('catForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const type = document.getElementById('catType').value;
+  const name = document.getElementById('catName').value.trim();
+  if(!name) return;
+  try{
+    await callApi('addCategory', {type, category:name});
+    toast('Category added');
+    document.getElementById('catName').value = '';
+    await loadInit();
+  }catch(err){ toast(err.message, true); }
+});
+
+// ---- Ledgers (credit accounts) ----
+let selectedPartyId = null;
+let newPartyType = 'Debtor';
+
+document.getElementById('printLedgerSummaryBtn').addEventListener('click', ()=>{
+  const parties = STATE.parties || [];
+  if(!parties.length){ toast('No parties to print yet.', true); return; }
+  let receivables = 0, payables = 0;
+  const rows = parties.map(p=>{
+    const oweUs = p.Type === 'Debtor';
+    if(oweUs) receivables += p.Balance; else payables += p.Balance;
+    return '<tr' + (p.Active ? '' : ' style="opacity:.6;"') + '>' +
+      '<td>' + escapeHtml(p.Name) + (p.Active ? '' : ' (Inactive)') + '</td>' +
+      '<td>' + p.Type + '</td>' +
+      '<td>' + escapeHtml(p.Contact||'') + '</td>' +
+      '<td class="amt ' + (oweUs?'income':'expense') + '">' + fmt(Math.abs(p.Balance)) + '</td>' +
+      '</tr>';
+  }).join('');
+  const table = '<table class="register"><thead><tr><th>Party</th><th>Type</th><th>Contact</th><th style="text-align:right;">Balance</th></tr></thead><tbody>' +
+    rows +
+    '<tr><td colspan="3" style="font-weight:700;">Total Receivables (owed to us)</td><td class="amt income" style="font-weight:700;">' + fmt(receivables) + '</td></tr>' +
+    '<tr><td colspan="3" style="font-weight:700;">Total Payables (we owe)</td><td class="amt expense" style="font-weight:700;">' + fmt(payables) + '</td></tr>' +
+    '</tbody></table>';
+  document.getElementById('ledgerSummaryPrintTable').innerHTML = table;
+  document.getElementById('printLedgerSummaryTitle').textContent =
+    STATE.societyName + ' — Ledger Accounts Summary — Printed ' + formatDate(new Date());
+  document.body.classList.add('ledger-summary-print-mode');
+  window.print();
+});
+
+document.getElementById('newPartyBtn').addEventListener('click', ()=>{
+  const f = document.getElementById('partyForm');
+  f.style.display = f.style.display === 'none' ? 'grid' : 'none';
+});
+document.getElementById('cancelParty').addEventListener('click', ()=>{
+  document.getElementById('partyForm').style.display = 'none';
+  document.getElementById('partyForm').reset();
+});
+document.querySelectorAll('button[data-ptype]').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    document.querySelectorAll('button[data-ptype]').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    newPartyType = b.dataset.ptype;
+  });
+});
+document.getElementById('partyForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  try{
+    await callApi('addParty', {
+      name: document.getElementById('pName').value,
+      type: newPartyType,
+      openingBalance: document.getElementById('pOpening').value,
+      contact: document.getElementById('pContact').value,
+      notes: document.getElementById('pNotes').value
+    });
+    toast('Party added');
+    document.getElementById('partyForm').reset();
+    document.getElementById('partyForm').style.display = 'none';
+    await loadParties();
+  }catch(err){ toast(err.message, true); }
+});
+
+async function loadParties(){
+  document.getElementById('partyListWrap').innerHTML = '<div class="empty">Loading…</div>';
+  try{
+    const parties = await callApi('listParties');
+    STATE.parties = parties;
+    if(!parties.length){
+      document.getElementById('partyListWrap').innerHTML = '<div class="empty">No parties yet. Add one to start a credit ledger.</div>';
+      return;
+    }
+    document.getElementById('partyListWrap').innerHTML = parties.map(p=>{
+      const oweUs = p.Type === 'Debtor';
+      return '<div class="party-item' + (p.ID===selectedPartyId?' active':'') + '"' + (p.Active ? '' : ' style="opacity:.5;"') + ' onclick="openParty(\''+p.ID+'\')">' +
+        '<div><div class="pname">' + escapeHtml(p.Name) + '</div><div class="ptype">' + p.Type + (p.Active ? '' : ' · Inactive') + '</div></div>' +
+        '<div class="pbal ' + (oweUs?'owe-us':'we-owe') + '">' + fmt(Math.abs(p.Balance)) + '</div>' +
+        '</div>';
+    }).join('');
+  }catch(err){ toast(err.message, true); document.getElementById('partyListWrap').innerHTML = '<div class="empty">Could not load parties.</div>'; }
+}
+
+let editingParty = false;
+
+async function openParty(partyId){
+  selectedPartyId = partyId;
+  editingParty = false;
+  document.querySelectorAll('.party-item').forEach(el=>el.classList.remove('active'));
+  loadParties();
+  const wrap = document.getElementById('partyDetailWrap');
+  wrap.innerHTML = '<div class="empty">Loading…</div>';
+  try{
+    const data = await callApi('partyLedger', {partyId});
+    renderPartyDetail(data);
+  }catch(err){ toast(err.message, true); wrap.innerHTML = '<div class="empty">Could not load ledger.</div>'; }
+}
+
+function renderPartyDetail(data){
+  const wrap = document.getElementById('partyDetailWrap');
+  const p = data.party;
+  const oweUs = p.Type === 'Debtor';
+  const balColor = oweUs ? 'var(--income)' : 'var(--expense)';
+  const admin = isAdmin();
+  currentPartyPrintData = { p, balance: data.balance };
+
+  if(editingParty){
+    wrap.innerHTML = '<div class="form-grid wide-first" style="box-shadow:none; border:none; padding:0;">' +
+      '<div><label>Party Name</label><input type="text" id="epName" value="'+escapeHtml(p.Name)+'"></div>' +
+      '<div><label>Type</label><select id="epType"><option'+(p.Type==='Debtor'?' selected':'')+'>Debtor</option><option'+(p.Type==='Creditor'?' selected':'')+'>Creditor</option></select></div>' +
+      '<div><label>Opening Balance (₹)</label><input type="number" id="epOpening" step="0.01" value="'+p.OpeningBalance+'"></div>' +
+      '<div><label>Contact</label><input type="text" id="epContact" value="'+escapeHtml(p.Contact||'')+'"></div>' +
+      '<div style="grid-column:1/-1;"><label>Notes</label><input type="text" id="epNotes" value="'+escapeHtml(p.Notes||'')+'"></div>' +
+      '<div class="form-actions"><button class="btn secondary" onclick="cancelPartyEdit()">Cancel</button><button class="btn" onclick="savePartyEdit(\''+p.ID+'\')">Save</button></div>' +
+      '</div>';
+    return;
+  }
+
+  let html = '<div id="partyLedgerPrintArea">';
+  html += '<div class="print-only-title" id="printLedgerTitle"></div>';
+  html += '<div class="ledger-summary"><div>' +
+    '<h3>' + escapeHtml(p.Name) + '</h3>' +
+    '<div style="font-size:12.5px; color:var(--muted);">' + p.Type + (p.Contact ? ' · ' + escapeHtml(p.Contact) : '') + (p.Active===false ? ' · Inactive' : '') + '</div>' +
+    '<div class="no-print" style="margin-top:8px; display:flex; gap:14px; flex-wrap:wrap;">' +
+      '<button style="background:none; border:none; cursor:pointer; color:var(--primary); font-size:12px; font-weight:600;" onclick="printPartyLedger()">Print Ledger</button>' +
+      (admin ? (
+        '<button style="background:none; border:none; cursor:pointer; color:var(--primary); font-size:12px; font-weight:600;" onclick="startPartyEdit()">Edit</button>' +
+        '<button style="background:none; border:none; cursor:pointer; color:var(--muted); font-size:12px; font-weight:600;" onclick="togglePartyActive(\''+p.ID+'\', '+(p.Active===false)+')">' + (p.Active===false ? 'Reactivate' : 'Deactivate') + '</button>' +
+        '<button style="background:none; border:none; cursor:pointer; color:var(--expense); font-size:12px; font-weight:600;" onclick="deleteParty(\''+p.ID+'\')">Delete</button>'
+      ) : '') +
+    '</div>' +
+    '</div><div style="text-align:right;"><div style="font-size:11px; color:var(--muted); font-weight:600;">' +
+    (oweUs ? 'OWED TO US' : 'WE OWE') + '</div><div class="bal" style="color:'+balColor+';">' + fmt(Math.abs(data.balance)) + '</div></div></div>';
+
+  html += data.entries.length ? renderLedgerTable(data.entries) : '<div class="empty">No entries recorded for this party yet.</div>';
+  html += '</div>'; // #partyLedgerPrintArea
+
+  html += '<div class="mini-form">' +
+    '<div class="f"><label>Entry</label><select id="leDirection">' +
+      '<option value="Credit">' + (oweUs ? 'Bill / Credit Given' : 'Purchase on Credit') + '</option>' +
+      '<option value="Payment">' + (oweUs ? 'Payment Received' : 'Payment Made') + '</option>' +
+    '</select></div>' +
+    '<div class="f" id="leAccountField" style="display:none;"><label>Via</label><select id="leAccount">' + accountOptionsHtml() + '</select></div>' +
+    '<div class="f"><label>Date</label><input type="date" id="leDate" value="'+todayISO()+'"></div>' +
+    '<div class="f"><label>Bill / Ref No.</label><input type="text" id="leRefNo" placeholder="Optional"></div>' +
+    '<div class="f"><label>Amount (₹)</label><input type="number" id="leAmount" step="0.01" min="0"></div>' +
+    '<div class="f" style="flex:1; min-width:180px;"><label>Description</label><input type="text" id="leDescription"></div>' +
+    '<div class="f"><button class="btn" id="leSaveBtn">Add</button></div>' +
+    '</div>';
+
+  wrap.innerHTML = html;
+
+  document.getElementById('leDirection').addEventListener('change', (e)=>{
+    document.getElementById('leAccountField').style.display = e.target.value === 'Payment' ? 'block' : 'none';
+  });
+  document.getElementById('leSaveBtn').addEventListener('click', async ()=>{
+    const direction = document.getElementById('leDirection').value;
+    const amount = document.getElementById('leAmount').value;
+    const date = document.getElementById('leDate').value;
+    if(!amount || !date){ toast('Date and amount are required.', true); return; }
+    try{
+      await callApi('addLedgerEntry', {
+        partyId: p.ID, direction, date, amount,
+        account: direction === 'Payment' ? document.getElementById('leAccount').value : '',
+        description: document.getElementById('leDescription').value,
+        refNo: document.getElementById('leRefNo').value,
+        enteredBy: currentUser ? currentUser.username : ''
+      });
+      toast('Ledger entry saved');
+      openParty(p.ID);
+      loadInit();
+    }catch(err){ toast(err.message, true); }
+  });
+}
+
+let currentPartyPrintData = null;
+function printPartyLedger(){
+  if(!currentPartyPrintData) return;
+  const { p, balance } = currentPartyPrintData;
+  const oweUs = p.Type === 'Debtor';
+  let title = STATE.societyName + ' — Party Ledger Statement';
+  title += ' — ' + p.Name + ' (' + p.Type + ')';
+  title += ' — Balance ' + (oweUs ? 'Owed to Us' : 'We Owe') + ': ' + fmt(Math.abs(balance));
+  title += ' — Printed ' + formatDate(new Date());
+  document.getElementById('printLedgerTitle').textContent = title;
+  document.body.classList.add('ledger-print-mode');
+  window.print();
+}
+
+function startPartyEdit(){ editingParty = true; openParty(selectedPartyId); }
+function cancelPartyEdit(){ editingParty = false; openParty(selectedPartyId); }
+
+async function savePartyEdit(id){
+  try{
+    await callApi('updateParty', {
+      id,
+      name: document.getElementById('epName').value.trim(),
+      type: document.getElementById('epType').value,
+      openingBalance: document.getElementById('epOpening').value,
+      contact: document.getElementById('epContact').value,
+      notes: document.getElementById('epNotes').value
+    });
+    toast('Party updated');
+    editingParty = false;
+    openParty(id);
+  }catch(err){ toast(err.message, true); }
+}
+
+async function togglePartyActive(id, active){
+  try{
+    await callApi('setPartyActive', {id, active});
+    toast(active ? 'Party reactivated' : 'Party deactivated');
+    openParty(id);
+  }catch(err){ toast(err.message, true); }
+}
+
+async function deleteParty(id){
+  if(!confirm('Permanently delete this party? This only works if it has no ledger entries recorded against it.')) return;
+  try{
+    await callApi('deleteParty', {id});
+    toast('Party deleted');
+    selectedPartyId = null;
+    document.getElementById('partyDetailWrap').innerHTML = '<div class="empty">Select a party on the left to view their ledger.</div>';
+    loadParties();
+  }catch(err){ toast(err.message, true); }
+}
+
+function renderLedgerTable(entries){
+  let html = '<table class="register"><thead><tr><th>Date</th><th>Ref No.</th><th>Entry</th><th>Via</th><th>Particulars</th><th style="text-align:right;">Amount</th><th></th></tr></thead><tbody>';
+  entries.forEach(e=>{
+    const isCredit = e.Direction === 'Credit';
+    html += '<tr>' +
+      '<td>' + formatDate(e.Date) + '</td>' +
+      '<td style="font-family:\'IBM Plex Mono\',monospace; color:var(--muted);">' + escapeHtml(e.RefNo||'—') + '</td>' +
+      '<td>' + (isCredit ? 'Credit' : 'Payment') + '</td>' +
+      '<td>' + (e.Account ? '<span class="pill ' + e.Account + '">' + e.Account + '</span>' : '—') + '</td>' +
+      '<td>' + escapeHtml(e.Description || '') + '</td>' +
+      '<td class="amt ' + (isCredit?'expense':'income') + '">' + (isCredit?'+':'−') + fmt(e.Amount) + '</td>' +
+      '<td class="row-actions">' + (isAdmin() ? '<button onclick="deleteLedgerEntry(\''+e.ID+'\')">Delete</button>' : '') + '</td>' +
+      '</tr>';
+  });
+  html += '</tbody></table>';
+  return html;
+}
+
+async function deleteLedgerEntry(id){
+  if(!confirm('Delete this ledger entry? If it was a payment, the linked cash/bank transaction will also be removed.')) return;
+  try{
+    await callApi('deleteLedgerEntry', {id});
+    toast('Entry deleted');
+    openParty(selectedPartyId);
+    loadInit();
+  }catch(err){ toast(err.message, true); }
+}
+
+// ---- Voucher ----
+async function openVoucher(id){
+  try{
+    const v = await callApi('voucher', {id});
+    document.getElementById('voucherContent').innerHTML = `
+      <div class="voucher-head">
+        <div class="soc">${escapeHtml(v.societyName)}</div>
+        <div class="kind">Payment Voucher</div>
+      </div>
+      <div class="voucher-meta"><span>Voucher No. <b>${escapeHtml(v.refNo)}</b></span><span>Date <b>${formatDate(v.date)}</b></span></div>
+      <div class="voucher-field"><div class="k">Paid To</div><div class="v">${escapeHtml(v.party || '—')}</div></div>
+      <div class="voucher-field"><div class="k">Mode of Payment</div><div class="v">${escapeHtml(v.account)}</div></div>
+      <div class="voucher-field"><div class="k">Category</div><div class="v">${escapeHtml(v.category)}</div></div>
+      <div class="voucher-field"><div class="k">Particulars</div><div class="v">${escapeHtml(v.description || '—')}</div></div>
+      <div class="voucher-amount-box">
+        <div class="words">${escapeHtml(v.amountInWords)}</div>
+        <div class="figure">${fmt(v.amount)}</div>
+      </div>
+      <div class="voucher-sign">
+        <div>Prepared By</div>
+        <div>Approved By</div>
+        <div>Received By</div>
+      </div>
+    `;
+    document.getElementById('voucherModal').classList.add('show');
+  }catch(err){ toast(err.message, true); }
+}
+document.getElementById('closeVoucher').addEventListener('click', ()=> document.getElementById('voucherModal').classList.remove('show'));
+document.getElementById('printVoucherBtn').addEventListener('click', ()=>{
+  document.body.classList.add('voucher-print-mode');
+  window.print();
+});
+
+// ---- Settings ----
+document.getElementById('apiUrlInput').value = API_URL;
+document.getElementById('saveApiUrl').addEventListener('click', ()=>{
+  const v = document.getElementById('apiUrlInput').value.trim();
+  localStorage.setItem('bss_api_url', v);
+  API_URL = v;
+  toast('Saved. Reloading data…');
+  if(currentUser){ loadInit(); } else { checkLoginGate(); }
+});
+
+// ---- Auth ----
+function applyRolePermissions(){
+  const admin = isAdmin();
+  document.getElementById('navUsers').style.display = admin ? '' : 'none';
+  document.getElementById('navAccounts').style.display = admin ? '' : 'none';
+  document.getElementById('navSettings').style.display = admin ? '' : 'none';
+  document.getElementById('newPartyBtn').style.display = admin ? '' : 'none';
+  document.getElementById('catForm').style.display = admin ? '' : 'none';
+  document.getElementById('currentUserBox').style.display = 'block';
+  document.getElementById('currentUserName').textContent = currentUser.displayName;
+  document.getElementById('currentUserRole').textContent = currentUser.role;
+}
+
+function checkLoginGate(){
+  const overlay = document.getElementById('loginOverlay');
+  if(!API_URL){
+    overlay.classList.remove('show');
+    document.querySelector('.nav-btn[data-view="settings"]').click();
+    toast('Paste your Apps Script Web App URL in Settings to begin.');
+  } else if(!currentUser){
+    overlay.classList.add('show');
+  } else {
+    overlay.classList.remove('show');
+    applyRolePermissions();
+    loadInit();
+  }
+}
+
+document.getElementById('loginForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const errEl = document.getElementById('loginError');
+  errEl.style.display = 'none';
+  try{
+    const user = await callApi('login', {
+      username: document.getElementById('loginUsername').value.trim(),
+      pin: document.getElementById('loginPin').value
+    });
+    currentUser = user;
+    sessionStorage.setItem('bss_user', JSON.stringify(user));
+    document.getElementById('loginForm').reset();
+    checkLoginGate();
+  }catch(err){
+    errEl.textContent = err.message;
+    errEl.style.display = 'block';
+  }
+});
+document.getElementById('loginChangeUrl').addEventListener('click', (e)=>{
+  e.preventDefault();
+  document.getElementById('loginOverlay').classList.remove('show');
+  document.querySelector('.nav-btn[data-view="settings"]').click();
+});
+document.getElementById('logoutBtn').addEventListener('click', ()=>{
+  currentUser = null;
+  sessionStorage.removeItem('bss_user');
+  checkLoginGate();
+});
+
+// ---- Users management ----
+async function loadUsers(){
+  document.getElementById('usersListWrap').innerHTML = '<div class="empty">Loading…</div>';
+  try{
+    const users = await callApi('listUsers');
+    document.getElementById('usersListWrap').innerHTML = '<table class="register"><thead><tr>' +
+      '<th>Username</th><th>Display Name</th><th>Role</th><th></th></tr></thead><tbody>' +
+      users.map(u => '<tr><td>' + escapeHtml(u.Username) + '</td><td>' + escapeHtml(u.DisplayName) + '</td>' +
+        '<td><span class="pill ' + (u.Role==='Admin'?'Bank':'Cash') + '">' + u.Role + '</span></td>' +
+        '<td class="row-actions"><button onclick="deleteUser(\''+u.ID+'\')">Delete</button></td></tr>').join('') +
+      '</tbody></table>';
+  }catch(err){ toast(err.message, true); document.getElementById('usersListWrap').innerHTML = '<div class="empty">Could not load users.</div>'; }
+}
+document.getElementById('userForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  try{
+    await callApi('addUser', {
+      username: document.getElementById('uUsername').value.trim(),
+      pin: document.getElementById('uPin').value,
+      displayName: document.getElementById('uDisplayName').value.trim(),
+      role: document.getElementById('uRole').value
+    });
+    toast('User added');
+    document.getElementById('userForm').reset();
+    loadUsers();
+  }catch(err){ toast(err.message, true); }
+});
+async function deleteUser(id){
+  if(!confirm('Delete this user account?')) return;
+  try{ await callApi('deleteUser', {id}); toast('User deleted'); loadUsers(); }
+  catch(err){ toast(err.message, true); }
+}
+
+// ---- Accounts management ----
+let editingAccountId = null;
+
+function accountViewRow(a){
+  return '<tr' + (a.Active ? '' : ' style="opacity:.5;"') + '>' +
+    '<td>' + escapeHtml(a.Name) + (a.Notes ? '<div style="font-size:11.5px; color:var(--muted);">' + escapeHtml(a.Notes) + '</div>' : '') + '</td>' +
+    '<td><span class="pill ' + a.Type + '">' + a.Type + '</span></td>' +
+    '<td class="amt">' + fmt(a.Balance) + '</td>' +
+    '<td>' + (a.Active ? 'Active' : 'Inactive') + '</td>' +
+    '<td class="row-actions">' +
+      '<button onclick="editAccount(\''+a.ID+'\')">Edit</button>' +
+      '<button onclick="toggleAccountActive(\''+a.ID+'\', ' + (!a.Active) + ')">' + (a.Active ? 'Deactivate' : 'Reactivate') + '</button>' +
+      '<button onclick="deleteAccount(\''+a.ID+'\')">Delete</button>' +
+    '</td></tr>';
+}
+
+function accountEditRow(a){
+  return '<tr style="background:var(--surface-alt);">' +
+    '<td><input type="text" id="eaName" value="'+escapeHtml(a.Name)+'" style="min-width:140px;"></td>' +
+    '<td><select id="eaType"><option'+(a.Type==='Bank'?' selected':'')+'>Bank</option><option'+(a.Type==='Cash'?' selected':'')+'>Cash</option></select></td>' +
+    '<td><input type="number" id="eaOpening" step="0.01" value="'+a.OpeningBalance+'" style="width:110px;"></td>' +
+    '<td colspan="2"><input type="text" id="eaNotes" value="'+escapeHtml(a.Notes||'')+'" placeholder="Notes" style="min-width:140px;">' +
+      ' <button class="btn" style="padding:7px 14px; font-size:11.5px;" onclick="saveAccountEdit(\''+a.ID+'\')">Save</button>' +
+      ' <button class="btn secondary" style="padding:7px 14px; font-size:11.5px;" onclick="cancelAccountEdit()">Cancel</button>' +
+    '</td></tr>';
+}
+
+function editAccount(id){ editingAccountId = id; loadAccountsView(true); }
+function cancelAccountEdit(){ editingAccountId = null; loadAccountsView(true); }
+
+async function saveAccountEdit(id){
+  try{
+    await callApi('updateAccount', {
+      id,
+      name: document.getElementById('eaName').value.trim(),
+      type: document.getElementById('eaType').value,
+      openingBalance: document.getElementById('eaOpening').value,
+      notes: document.getElementById('eaNotes').value
+    });
+    toast('Account updated');
+    editingAccountId = null;
+    loadAccountsView();
+    loadInit();
+  }catch(err){ toast(err.message, true); }
+}
+
+async function deleteAccount(id){
+  if(!confirm('Permanently delete this account? This only works if it has no transactions recorded against it.')) return;
+  try{
+    await callApi('deleteAccount', {id});
+    toast('Account deleted');
+    loadAccountsView();
+    loadInit();
+  }catch(err){ toast(err.message, true); }
+}
+
+async function loadAccountsView(skipSpinner){
+  if(!skipSpinner) document.getElementById('accountsListWrap').innerHTML = '<div class="empty">Loading…</div>';
+  try{
+    const accounts = await callApi('listAccounts');
+    STATE.accounts = accounts;
+    document.getElementById('accountsListWrap').innerHTML = accounts.length ? (
+      '<table class="register"><thead><tr><th>Name</th><th>Type</th><th>Balance</th><th>Status</th><th></th></tr></thead><tbody>' +
+      accounts.map(a => a.ID === editingAccountId ? accountEditRow(a) : accountViewRow(a)).join('') + '</tbody></table>'
+    ) : '<div class="empty">No accounts yet. Add your first one below.</div>';
+  }catch(err){ toast(err.message, true); document.getElementById('accountsListWrap').innerHTML = '<div class="empty">Could not load accounts.</div>'; }
+}
+document.getElementById('accountForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  try{
+    await callApi('addAccount', {
+      name: document.getElementById('aName').value.trim(),
+      type: document.getElementById('aType').value,
+      openingBalance: document.getElementById('aOpening').value,
+      notes: document.getElementById('aNotes').value
+    });
+    toast('Account added');
+    document.getElementById('accountForm').reset();
+    loadAccountsView();
+    loadInit();
+  }catch(err){ toast(err.message, true); }
+});
+async function toggleAccountActive(id, active){
+  try{ await callApi('setAccountActive', {id, active}); toast(active ? 'Account reactivated' : 'Account deactivated'); loadAccountsView(); loadInit(); }
+  catch(err){ toast(err.message, true); }
+}
+
+// ---- Init ----
+document.getElementById('fDate').value = todayISO();
+checkLoginGate();
+</script>
+</body>
+</html>
