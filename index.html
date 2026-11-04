@@ -447,9 +447,18 @@
           <select id="filterType"><option>All</option><option>Income</option><option>Expense</option>
             <option value="TransferOut">Transfer Out</option><option value="TransferIn">Transfer In</option></select>
         </div>
+        <div class="f"><label>Period</label>
+          <select id="filterPeriod">
+            <option value="all">All dates</option><option value="today">Today</option>
+            <option value="thisMonth">This month</option><option value="lastMonth">Last month</option>
+            <option value="thisFY">This financial year</option><option value="lastFY">Last financial year</option>
+            <option value="custom">Custom</option>
+          </select>
+        </div>
         <div class="f"><label>From</label><input type="date" id="filterFrom"></div>
         <div class="f"><label>To</label><input type="date" id="filterTo"></div>
         <div class="f"><button class="btn secondary" id="applyFilters">Apply</button></div>
+        <div class="f"><button class="btn secondary" id="clearFilters">Clear</button></div>
         <div class="f"><button class="btn secondary" id="printRegister">Print Register</button></div>
       </div>
       <div id="registerPrintArea">
@@ -757,7 +766,9 @@ function populateAccountDropdowns(){
   ['fAccount','fToAccount','filterAccount'].forEach(id=>{
     const sel = document.getElementById(id);
     const keepAll = id === 'filterAccount';
+    const prev = sel.value;  // keep the user's selection across refreshes
     sel.innerHTML = (keepAll ? '<option>All</option>' : '') + opts;
+    if(prev && [...sel.options].some(o=>o.value===prev)) sel.value = prev;
   });
 }
 
@@ -784,7 +795,7 @@ document.getElementById('addForm').addEventListener('submit', async (e)=>{
     enteredBy: currentUser ? currentUser.username : ''
   };
   if(isTransfer) payload.fromAccount = payload.account;
-  if(!payload.date || !payload.amount){ toast('Date and amount are required.', true); return; }
+  if(!payload.date || !(Number(payload.amount) > 0)){ toast('Date and an amount greater than zero are required.', true); return; }
   if(isTransfer && payload.fromAccount === payload.toAccount){ toast('From and To accounts must be different.', true); return; }
   try{
     const res = await callApi('add', payload);
@@ -799,7 +810,7 @@ document.getElementById('addForm').addEventListener('submit', async (e)=>{
   }catch(err){ toast(err.message, true); }
 });
 
-function todayISO(){ return new Date().toISOString().slice(0,10); }
+function todayISO(){ return toLocalISO(new Date()); }
 
 // ---- Dashboard ----
 async function loadInit(){
@@ -831,7 +842,7 @@ async function loadInit(){
 async function loadRecent(){
   try{
     const list = await callApi('list', {});
-    const recent = list.slice(0,8);
+    const recent = list.slice().sort((a,b)=> toLocalISO(b.Date).localeCompare(toLocalISO(a.Date))).slice(0,8);
     document.getElementById('recentWrap').innerHTML = recent.length ? renderTable(recent, false) : '<div class="empty">No entries yet. Add your first entry to get started.</div>';
   }catch(err){ /* silent on dashboard */ }
 }
@@ -919,9 +930,33 @@ function renderTable(rows, withActions){
   return html;
 }
 
+// Parse any date the sheet/API may return into a local Date (midnight).
+// Handles Date objects, "YYYY-MM-DD", "DD/MM/YYYY", "DD-MM-YYYY" and full ISO
+// timestamps (Apps Script serialises sheet dates as UTC, e.g. 2026-11-03T18:30:00.000Z
+// for 4 Nov IST — reading those with toISOString() gives the previous day).
+function parseDate(d){
+  if(d === null || d === undefined || d === '') return null;
+  if(d instanceof Date) return isNaN(d) ? null : new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const s = String(d).trim();
+  // A trailing time ("04/11/2026 10:30:00") is allowed; full ISO timestamps with
+  // a "T" fall through to new Date() so the UTC → IST shift is applied.
+  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:\s.*)?$/);
+  if(m) return new Date(+m[1], +m[2]-1, +m[3]);
+  m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})(?:[\s,].*)?$/);
+  if(m) return new Date(+m[3], +m[2]-1, +m[1]);
+  const dt = new Date(s);
+  return isNaN(dt) ? null : new Date(dt.getFullYear(), dt.getMonth(), dt.getDate());
+}
+// Local YYYY-MM-DD (never toISOString, which is UTC and shifts dates before 5:30 AM IST).
+function toLocalISO(d){
+  const dt = parseDate(d);
+  if(!dt) return '';
+  return dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0');
+}
+
 function formatDate(d){
-  const dt = new Date(d);
-  if(isNaN(dt)) return d;
+  const dt = parseDate(d);
+  if(!dt) return d || '';
   const dd = String(dt.getDate()).padStart(2,'0');
   const mm = String(dt.getMonth()+1).padStart(2,'0');
   const yyyy = dt.getFullYear();
@@ -929,22 +964,119 @@ function formatDate(d){
 }
 
 // ---- Register ----
+function currentFilters(){
+  return {
+    account: document.getElementById('filterAccount').value,
+    type: document.getElementById('filterType').value,
+    from: document.getElementById('filterFrom').value,
+    to: document.getElementById('filterTo').value
+  };
+}
+
+// Apply filters on the client as well, so the date range is always inclusive
+// of both the From and To days and uses local dates, whatever the backend does.
+function applyFiltersLocally(list, f){
+  return list.filter(t=>{
+    if(f.account && f.account !== 'All' && t.Account !== f.account) return false;
+    if(f.type && f.type !== 'All' && t.Type !== f.type) return false;
+    const d = toLocalISO(t.Date);
+    if(f.from && (!d || d < f.from)) return false;
+    if(f.to && (!d || d > f.to)) return false;
+    return true;
+  });
+}
+
+function registerTotalsHtml(rows){
+  let inc = 0, exp = 0;
+  rows.forEach(t=>{
+    const a = Number(t.Amount) || 0;
+    if(t.Type === 'Income' || t.Type === 'TransferIn') inc += a;
+    else if(t.Type === 'Expense' || t.Type === 'TransferOut') exp += a;
+  });
+  return '<div style="display:flex; gap:24px; flex-wrap:wrap; justify-content:flex-end; padding:12px 16px; border-top:1px solid var(--line); font-size:13px;">' +
+    '<span>' + rows.length + ' entries</span>' +
+    '<span>Receipts <b class="amt income">' + fmt(inc) + '</b></span>' +
+    '<span>Payments <b class="amt expense">' + fmt(exp) + '</b></span>' +
+    '<span>Net <b class="amt">' + fmt(inc - exp) + '</b></span></div>';
+}
+
+// Chronological order (oldest first); same-day entries keep the sheet order.
+function sortByDate(list){
+  return list.map((t,i)=>({t, i, d:toLocalISO(t.Date)}))
+    .sort((a,b)=> a.d === b.d ? a.i - b.i : a.d.localeCompare(b.d))
+    .map(x=>x.t);
+}
+
+let registerRequestSeq = 0;
 async function loadRegister(){
+  const f = currentFilters();
+  if(f.from && f.to && f.from > f.to){
+    toast('"From" date is after "To" date.', true);
+    return false;
+  }
+  const seq = ++registerRequestSeq;
   document.getElementById('registerWrap').innerHTML = '<div class="empty">Loading…</div>';
   try{
-    const payload = {
-      account: document.getElementById('filterAccount').value,
-      type: document.getElementById('filterType').value,
-      from: document.getElementById('filterFrom').value,
-      to: document.getElementById('filterTo').value
-    };
-    const list = await callApi('list', payload);
+    // Fetch everything and filter here: the server-side date filter is not
+    // reliable (it can drop entries on the From/To days), and filtering
+    // locally can only narrow rows, never bring missing ones back.
+    const all = await callApi('list', {});
+    if(seq !== registerRequestSeq) return false;  // a newer filter request superseded this one
+    const list = sortByDate(applyFiltersLocally(all, f));
     STATE.transactions = list;
-    document.getElementById('registerWrap').innerHTML = list.length ? renderTable(list, true) : '<div class="empty">No entries match these filters.</div>';
-  }catch(err){ toast(err.message, true); document.getElementById('registerWrap').innerHTML = '<div class="empty">Could not load register.</div>'; }
+    document.getElementById('registerWrap').innerHTML = list.length ? renderTable(list, true) + registerTotalsHtml(list) : '<div class="empty">No entries match these filters.</div>';
+    return true;
+  }catch(err){
+    if(seq !== registerRequestSeq) return false;
+    toast(err.message, true); document.getElementById('registerWrap').innerHTML = '<div class="empty">Could not load register.</div>'; return false;
+  }
 }
+
+// Quick periods. Financial year runs April–March.
+function setPeriod(p){
+  const now = new Date(), y = now.getFullYear(), m = now.getMonth();
+  const fyStart = m >= 3 ? y : y - 1;
+  const ranges = {
+    today:     [now, now],
+    thisMonth: [new Date(y, m, 1), new Date(y, m+1, 0)],
+    lastMonth: [new Date(y, m-1, 1), new Date(y, m, 0)],
+    thisFY:    [new Date(fyStart, 3, 1), new Date(fyStart+1, 2, 31)],
+    lastFY:    [new Date(fyStart-1, 3, 1), new Date(fyStart, 2, 31)]
+  };
+  const r = ranges[p];
+  document.getElementById('filterFrom').value = r ? toLocalISO(r[0]) : '';
+  document.getElementById('filterTo').value = r ? toLocalISO(r[1]) : '';
+}
+
 document.getElementById('applyFilters').addEventListener('click', loadRegister);
-document.getElementById('printRegister').addEventListener('click', ()=>{
+['filterAccount','filterType'].forEach(id=>{
+  document.getElementById(id).addEventListener('change', loadRegister);
+});
+// Date boxes fire "change" while the year is still being typed (e.g. 0002),
+// so only reload once a full, sensible date (or a cleared box) is in place.
+['filterFrom','filterTo'].forEach(id=>{
+  document.getElementById(id).addEventListener('change', e=>{
+    document.getElementById('filterPeriod').value = 'custom';
+    const v = e.target.value;
+    if(!v || v.slice(0,4) >= '2000') loadRegister();
+  });
+});
+document.getElementById('filterPeriod').addEventListener('change', e=>{
+  if(e.target.value === 'custom') return;
+  setPeriod(e.target.value);
+  loadRegister();
+});
+document.getElementById('clearFilters').addEventListener('click', ()=>{
+  document.getElementById('filterAccount').value = 'All';
+  document.getElementById('filterType').value = 'All';
+  document.getElementById('filterPeriod').value = 'all';
+  document.getElementById('filterFrom').value = '';
+  document.getElementById('filterTo').value = '';
+  loadRegister();
+});
+document.getElementById('printRegister').addEventListener('click', async ()=>{
+  // Reload first so the printed rows always match the filters in the title.
+  if(!(await loadRegister())) return;
   const acc = document.getElementById('filterAccount').value;
   const typ = document.getElementById('filterType').value;
   const from = document.getElementById('filterFrom').value;
@@ -976,7 +1108,7 @@ function openEditEntry(id){
   if(!t){ toast('Could not find that entry — refresh the register and try again.', true); return; }
 
   document.getElementById('eeId').value = t.ID;
-  document.getElementById('eeDate').value = new Date(t.Date).toISOString().slice(0,10);
+  document.getElementById('eeDate').value = toLocalISO(t.Date);
   document.getElementById('eeAmount').value = t.Amount;
   document.getElementById('eeDescription').value = t.Description || '';
   document.getElementById('eeParty').value = t.Party || '';
@@ -1004,6 +1136,7 @@ document.getElementById('cancelEditEntry').addEventListener('click', ()=>{
 });
 document.getElementById('editEntryForm').addEventListener('submit', async (e)=>{
   e.preventDefault();
+  if(!(Number(document.getElementById('eeAmount').value) > 0)){ toast('Amount must be greater than zero.', true); return; }
   try{
     await callApi('update', {
       id: document.getElementById('eeId').value,
@@ -1192,7 +1325,7 @@ function renderPartyDetail(data){
     const direction = document.getElementById('leDirection').value;
     const amount = document.getElementById('leAmount').value;
     const date = document.getElementById('leDate').value;
-    if(!amount || !date){ toast('Date and amount are required.', true); return; }
+    if(!date || !(Number(amount) > 0)){ toast('Date and an amount greater than zero are required.', true); return; }
     try{
       await callApi('addLedgerEntry', {
         partyId: p.ID, direction, date, amount,
@@ -1268,7 +1401,7 @@ function renderLedgerTable(entries){
       '<td>' + formatDate(e.Date) + '</td>' +
       '<td style="font-family:\'IBM Plex Mono\',monospace; color:var(--muted);">' + escapeHtml(e.RefNo||'—') + '</td>' +
       '<td>' + (isCredit ? 'Credit' : 'Payment') + '</td>' +
-      '<td>' + (e.Account ? '<span class="pill ' + e.Account + '">' + e.Account + '</span>' : '—') + '</td>' +
+      '<td>' + (e.Account ? '<span class="pill ' + (accountTypeOf(e.Account)==='Cash'?'Cash':'Bank') + '">' + escapeHtml(e.Account) + '</span>' : '—') + '</td>' +
       '<td>' + escapeHtml(e.Description || '') + '</td>' +
       '<td class="amt ' + (isCredit?'expense':'income') + '">' + (isCredit?'+':'−') + fmt(e.Amount) + '</td>' +
       '<td class="row-actions">' + (isAdmin() ? '<button onclick="deleteLedgerEntry(\''+e.ID+'\')">Delete</button>' : '') + '</td>' +
