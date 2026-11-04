@@ -1097,7 +1097,7 @@ async function loadInit(){
 async function loadRecent(){
   try{
     const list = await callApi('list', {});
-    const recent = list.slice().sort((a,b)=> toLocalISO(b.Date).localeCompare(toLocalISO(a.Date))).slice(0,8);
+    const recent = sortByDate(list).slice(0,8);
     document.getElementById('recentWrap').innerHTML = recent.length ? renderTable(recent, false) : '<div class="empty">No entries yet. Add your first entry to get started.</div>';
   }catch(err){ /* silent on dashboard */ }
 }
@@ -1261,10 +1261,23 @@ function registerTotalsHtml(rows){
     '<span>Net <b class="amt">' + fmt(inc - exp) + '</b></span></div>';
 }
 
-// Chronological order (oldest first); same-day entries keep the sheet order.
+// Last entered on top: Ref No. numbers are issued in entry order, so the highest
+// comes first even for back-dated entries. A transfer's two rows share one Ref No.;
+// show Transfer Out above Transfer In. Other ties fall back to newest date, then sheet order.
+const TYPE_RANK = {TransferOut:0, TransferIn:1};
+function refSeq(ref){
+  const s = String(ref||'');
+  const ym = s.match(/(\d{4})\D+(\d+)\D*$/);          // BSS/2026/0376 → year 2026, no. 376
+  if(ym) return +ym[1] * 1e6 + +ym[2];                 // numbering restarts each year
+  const m = s.match(/(\d+)\D*$/);
+  return m ? +m[1] : -1;
+}
 function sortByDate(list){
-  return list.map((t,i)=>({t, i, d:toLocalISO(t.Date)}))
-    .sort((a,b)=> a.d === b.d ? a.i - b.i : a.d.localeCompare(b.d))
+  return list.map((t,i)=>({t, i, d:toLocalISO(t.Date), r:refSeq(t.RefNo), k:TYPE_RANK[t.Type] ?? 0}))
+    .sort((a,b)=> a.r !== b.r ? b.r - a.r
+                : a.k !== b.k ? a.k - b.k
+                : a.d !== b.d ? b.d.localeCompare(a.d)
+                : a.i - b.i)
     .map(x=>x.t);
 }
 
