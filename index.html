@@ -292,8 +292,15 @@
   .row-actions .icon-btn{width:32px; height:32px; padding:0; display:inline-flex; align-items:center; justify-content:center; vertical-align:middle;}
   .row-actions .icon-btn svg{width:16px; height:16px;}
   .row-actions .icon-btn.danger:hover{color:var(--expense); background:var(--expense-tint);}
-  table.register td.ref{white-space:nowrap;}
-  table.register.txn td:nth-child(6){min-width:180px;}
+  table.register td.ref{white-space:nowrap; font-size:12px;}
+  /* Register columns: keep the whole row inside the panel on a 1366px laptop */
+  table.register.txn th, table.register.txn td{padding-left:12px; padding-right:12px;}
+  table.register.txn td .ref{font-weight:400; margin-top:2px;}
+  table.register.txn td:nth-child(3){white-space:nowrap;}   /* type */
+  table.register.txn td:nth-child(4){min-width:120px;}      /* category */
+  table.register.txn td:nth-child(5){min-width:150px;}      /* particulars */
+  table.register.txn .row-actions{padding-left:4px; padding-right:10px; width:1%;}
+  table.register.txn .row-actions .icon-btn{width:30px; height:30px; margin-left:0;}
 
   .empty{padding:52px 24px; text-align:center; color:var(--muted); font-size:14px;}
   .toast{
@@ -517,6 +524,23 @@
     .voucher-inner{padding:24px 20px 20px;}
     .voucher-field .k{width:120px;}
     .toast{left:16px; right:16px; bottom:16px;}
+  }
+  /* Smaller monitors: icon-only sidebar so the register has room for every column */
+  @media (min-width:821px) and (max-width:1180px){
+    aside.sidebar{width:76px; padding:22px 12px; align-items:center;}
+    .brand{padding:0;}
+    .brand .name{display:none;}
+    nav.side-nav{width:100%;}
+    .nav-btn{font-size:0; gap:0; justify-content:center; padding:11px 0;}
+    .nav-btn.active::before{left:-12px;}
+    .sidebar-foot{align-items:center; padding:0;}
+    .sidebar-foot #entryCount, .sidebar-foot .theme-label,
+    .sidebar-foot .user-name, .sidebar-foot .user-role{display:none;}
+    .theme-btn{width:40px; height:40px; padding:0;}
+    #currentUserBox{background:none; border:none; padding:0;}
+    .user-row{flex-direction:column; gap:6px;}
+    .logout-btn{margin-left:0;}
+    main{padding:26px 24px 56px;}
   }
   @media (max-width:520px){
     .filters .f{flex:1 1 100%;}
@@ -952,6 +976,7 @@ async function callApi(action, payload){
 
 // ---- Nav ----
 document.querySelectorAll('.nav-btn').forEach(btn=>{
+  btn.title = btn.textContent.trim();  // tooltip when the sidebar shows icons only
   btn.addEventListener('click', ()=>{
     document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
     document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
@@ -1142,7 +1167,7 @@ const ICONS = {
 
 function renderTable(rows, withActions){
   let html = '<table class="register txn"><thead><tr>' +
-    '<th>Date</th><th>Ref No.</th><th>Account</th><th>Type</th><th>Category</th><th>Particulars</th><th style="text-align:right;">Amount</th>' +
+    '<th>Date / Ref No.</th><th>Account</th><th>Type</th><th>Category</th><th>Particulars</th><th style="text-align:right;">Amount</th>' +
     (withActions ? '<th></th>' : '') + '</tr></thead><tbody>';
   rows.forEach(t=>{
     const isIncome = t.Type === 'Income' || t.Type === 'TransferIn';
@@ -1150,8 +1175,7 @@ function renderTable(rows, withActions){
     const isRealExpense = t.Type === 'Expense';
     const isPlainEntry = (t.Type === 'Income' || t.Type === 'Expense') && !t.LinkedTxnID;
     html += '<tr>' +
-      '<td>' + formatDate(t.Date) + '</td>' +
-      '<td class="ref">' + escapeHtml(t.RefNo) + '</td>' +
+      '<td>' + formatDate(t.Date) + '<div class="ref">' + escapeHtml(t.RefNo) + '</div></td>' +
       '<td><span class="pill ' + (accountTypeOf(t.Account)==='Cash'?'Cash':'Bank') + '">' + escapeHtml(t.Account) + '</span></td>' +
       '<td>' + typeLabel(t.Type) + '</td>' +
       '<td>' + escapeHtml(t.Category) + '</td>' +
