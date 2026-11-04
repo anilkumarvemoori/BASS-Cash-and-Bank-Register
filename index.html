@@ -906,22 +906,28 @@
   <div>
     <div class="voucher" style="width:560px;">
       <div class="voucher-inner" style="padding:30px 32px;">
-        <div class="modal-title" style="margin-bottom:18px;">Edit Entry</div>
+        <div class="modal-title" style="margin-bottom:4px;" id="eeTitle">Edit Entry</div>
+        <div id="eeSubtitle" style="color:var(--muted); font-size:12.5px; margin-bottom:18px;"></div>
         <form class="form-grid wide-first" id="editEntryForm" style="box-shadow:none; border:none; padding:0;">
           <input type="hidden" id="eeId">
+          <input type="hidden" id="eeMode">
           <div>
             <label>Date</label>
             <input type="date" id="eeDate" required>
           </div>
           <div>
-            <label>Account</label>
+            <label id="eeAccountLabel">Account</label>
             <select id="eeAccount"></select>
           </div>
-          <div>
+          <div id="eeToAccountField" style="display:none;">
+            <label>To Account</label>
+            <select id="eeToAccount"></select>
+          </div>
+          <div id="eeCategoryField">
             <label>Category</label>
             <select id="eeCategory"></select>
           </div>
-          <div>
+          <div id="eePartyField">
             <label id="eePartyLabel">Received From / Paid To</label>
             <input type="text" id="eeParty">
           </div>
@@ -982,7 +988,10 @@ async function withBusy(btn, fn, busyText){
 async function callApi(action, payload){
   if(!API_URL){ toast('Set your Apps Script URL in Settings first.', true); throw new Error('No API URL'); }
   payload = Object.assign({action}, payload||{});
-  if(currentUser){ payload.actorRole = currentUser.role; payload.actorUsername = currentUser.username; }
+  if(currentUser){
+    payload.token = currentUser.token;  // the server checks this; it ignores any role the browser claims
+    payload.actorRole = currentUser.role; payload.actorUsername = currentUser.username;  // only read by the older backend
+  }
   let res, data;
   try{
     res = await fetch(API_URL, { method:'POST', body: JSON.stringify(payload) });
@@ -994,8 +1003,22 @@ async function callApi(action, payload){
   }catch(err){
     throw new Error('The server sent an unexpected reply (it may be busy). Please try again in a minute.');
   }
+  if(data && data.code === 'AUTH' && action !== 'login') sessionExpired();
   if(!data || !data.ok) throw new Error((data && data.error) || 'Request failed. Please try again.');
   return data.data;
+}
+
+// The server says the sign-in is no longer valid: go back to the sign-in screen.
+let sessionExpiredShown = false;
+function sessionExpired(){
+  if(sessionExpiredShown) return;
+  sessionExpiredShown = true;
+  currentUser = null;
+  sessionStorage.removeItem('bss_user');
+  document.getElementById('loginOverlay').classList.add('show');
+  const errEl = document.getElementById('loginError');
+  errEl.textContent = 'Your session has expired. Please sign in again.';
+  errEl.style.display = 'block';
 }
 
 // ---- Nav ----
@@ -1227,7 +1250,8 @@ function renderTable(rows, withActions){
     const isIncome = t.Type === 'Income' || t.Type === 'TransferIn';
     const isExpense = t.Type === 'Expense' || t.Type === 'TransferOut';
     const isRealExpense = t.Type === 'Expense';
-    const isPlainEntry = (t.Type === 'Income' || t.Type === 'Expense') && !t.LinkedTxnID;
+    // Income/Expense rows and both halves of a transfer can be edited.
+    const canEdit = ((t.Type === 'Income' || t.Type === 'Expense') && !t.LinkedTxnID) || isTransferType(t.Type);
     html += '<tr>' +
       '<td>' + formatDate(t.Date) + '<div class="ref">' + escapeHtml(t.RefNo) + '</div></td>' +
       '<td><span class="pill ' + (accountTypeOf(t.Account)==='Cash'?'Cash':'Bank') + '">' + escapeHtml(t.Account) + '</span></td>' +
@@ -1237,7 +1261,7 @@ function renderTable(rows, withActions){
       '<td class="amt ' + (isIncome?'income':(isExpense?'expense':'')) + '">' + (isExpense ? '−' : (isIncome?'+':'')) + fmt(t.Amount) + '</td>' +
       (withActions ? ('<td class="row-actions">' +
         (isRealExpense ? '<button class="icon-btn print-link" title="Print voucher" aria-label="Print voucher" onclick="openVoucher(\''+t.ID+'\')">' + ICONS.printer + '</button>' : '') +
-        (isAdmin() && isPlainEntry ? '<button class="icon-btn" title="Edit" aria-label="Edit" onclick="openEditEntry(\''+t.ID+'\')">' + ICONS.edit + '</button>' : '') +
+        (isAdmin() && canEdit ? '<button class="icon-btn" title="Edit" aria-label="Edit" onclick="openEditEntry(\''+t.ID+'\')">' + ICONS.edit + '</button>' : '') +
         (isAdmin() ? '<button class="icon-btn danger" title="Delete" aria-label="Delete" onclick="deleteEntry(\''+t.ID+'\')">' + ICONS.trash + '</button>' : '') + '</td>') : '') +
       '</tr>';
   });
@@ -1349,6 +1373,7 @@ async function loadRegister(){
     // locally can only narrow rows, never bring missing ones back.
     const all = await callApi('list', {});
     if(seq !== registerRequestSeq) return false;  // a newer filter request superseded this one
+    STATE.allTransactions = all;  // unfiltered, so a transfer's other half can be found when editing
     const list = sortByDate(applyFiltersLocally(all, f));
     STATE.transactions = list;
     document.getElementById('registerWrap').innerHTML = list.length ? renderTable(list, true) + registerTotalsHtml(list) : '<div class="empty">No entries match these filters.</div>';
@@ -1424,29 +1449,50 @@ window.addEventListener('afterprint', ()=>{
 });
 
 async function deleteEntry(id){
-  if(!confirm('Delete this entry? This cannot be undone.')) return;
+  const t = (STATE.transactions || []).find(r => r.ID === id) || {};
+  const extra = isTransferType(t.Type) ? '\n\nBoth the Transfer Out and Transfer In rows will be deleted.'
+    : isLedgerPayment(t) ? '\n\nThe matching payment in the party ledger will be deleted too.' : '';
+  if(!confirm('Delete entry ' + (t.RefNo || '') + '? This cannot be undone.' + extra)) return;
   try{ await callApi('delete', {id}); toast('Entry deleted'); loadRegister(); loadInit(); }
   catch(err){ toast(err.message, true); }
 }
 
 // ---- Edit Entry ----
+function fillAccountSelect(sel, current){
+  sel.innerHTML = accountOptionsHtml();
+  if(current && ![...sel.options].some(o=>o.value===current)){
+    sel.insertAdjacentHTML('beforeend', '<option value="'+escapeHtml(current)+'">'+escapeHtml(current)+' (inactive)</option>');
+  }
+  sel.value = current;
+}
+function isTransferType(type){ return type === 'TransferOut' || type === 'TransferIn'; }
+// Ledger payments create their cash/bank row with category "Ledger — <party>".
+function isLedgerPayment(t){ return /^Ledger — /.test(String(t.Category || '')); }
+
+function setEditMode(transfer){
+  document.getElementById('eeMode').value = transfer ? 'transfer' : 'entry';
+  document.getElementById('eeTitle').textContent = transfer ? 'Edit Transfer' : 'Edit Entry';
+  document.getElementById('eeAccountLabel').textContent = transfer ? 'From Account' : 'Account';
+  document.getElementById('eeToAccountField').style.display = transfer ? 'block' : 'none';
+  document.getElementById('eeCategoryField').style.display = transfer ? 'none' : 'block';
+  document.getElementById('eePartyField').style.display = transfer ? 'none' : 'block';
+}
+
 function openEditEntry(id){
   const t = (STATE.transactions || []).find(r => r.ID === id);
   if(!t){ toast('Could not find that entry — refresh the register and try again.', true); return; }
+  if(isTransferType(t.Type)) return openEditTransfer(t);
+  setEditMode(false);
 
   document.getElementById('eeId').value = t.ID;
+  document.getElementById('eeSubtitle').textContent = t.RefNo + (isLedgerPayment(t) ? ' · the party ledger will be updated too' : '');
   document.getElementById('eeDate').value = toLocalISO(t.Date);
   document.getElementById('eeAmount').value = t.Amount;
   document.getElementById('eeDescription').value = t.Description || '';
   document.getElementById('eeParty').value = t.Party || '';
   document.getElementById('eePartyLabel').textContent = t.Type === 'Income' ? 'Received From' : 'Paid To';
 
-  const accSel = document.getElementById('eeAccount');
-  accSel.innerHTML = accountOptionsHtml();
-  if(![...accSel.options].some(o=>o.value===t.Account)){
-    accSel.insertAdjacentHTML('beforeend', '<option value="'+escapeHtml(t.Account)+'">'+escapeHtml(t.Account)+' (inactive)</option>');
-  }
-  accSel.value = t.Account;
+  fillAccountSelect(document.getElementById('eeAccount'), t.Account);
 
   const catSel = document.getElementById('eeCategory');
   catSel.innerHTML = STATE.categories.filter(c=>c.Type===t.Type)
@@ -1458,24 +1504,62 @@ function openEditEntry(id){
 
   document.getElementById('editEntryModal').classList.add('show');
 }
+
+// A transfer is two rows (Out and In) sharing LinkedTxnID; both are edited together.
+function openEditTransfer(t){
+  const all = STATE.allTransactions || STATE.transactions || [];
+  const pair = all.filter(r => r.LinkedTxnID && r.LinkedTxnID === t.LinkedTxnID);
+  const out = pair.find(r => r.Type === 'TransferOut'), inn = pair.find(r => r.Type === 'TransferIn');
+  if(!out || !inn){ toast('This transfer is missing one of its two rows, so it cannot be edited. Delete it and enter it again.', true); return; }
+  setEditMode(true);
+
+  document.getElementById('eeId').value = out.ID;
+  document.getElementById('eeSubtitle').textContent = out.RefNo + ' · both the Out and In rows will be updated';
+  document.getElementById('eeDate').value = toLocalISO(out.Date);
+  document.getElementById('eeAmount').value = out.Amount;
+  // Automatic descriptions are left blank so they are rewritten if the accounts change.
+  const auto = out.Description === 'Transfer to ' + inn.Account && inn.Description === 'Transfer from ' + out.Account;
+  const desc = document.getElementById('eeDescription');
+  desc.value = auto ? '' : (out.Description || '');
+  desc.placeholder = 'Leave blank for "Transfer to / from …"';
+  fillAccountSelect(document.getElementById('eeAccount'), out.Account);
+  fillAccountSelect(document.getElementById('eeToAccount'), inn.Account);
+
+  document.getElementById('editEntryModal').classList.add('show');
+}
 document.getElementById('cancelEditEntry').addEventListener('click', ()=>{
   document.getElementById('editEntryModal').classList.remove('show');
 });
 document.getElementById('editEntryForm').addEventListener('submit', async (e)=>{
   e.preventDefault();
   if(!(Number(document.getElementById('eeAmount').value) > 0)){ toast('Amount must be greater than zero.', true); return; }
+  const transfer = document.getElementById('eeMode').value === 'transfer';
+  if(transfer && document.getElementById('eeAccount').value === document.getElementById('eeToAccount').value){
+    toast('From and To accounts must be different.', true); return;
+  }
   await withBusy(e.submitter || e.target.querySelector('button[type="submit"]'), async ()=>{
     try{
-      await callApi('update', {
-        id: document.getElementById('eeId').value,
-        date: document.getElementById('eeDate').value,
-        account: document.getElementById('eeAccount').value,
-        category: document.getElementById('eeCategory').value,
-        description: document.getElementById('eeDescription').value,
-        amount: document.getElementById('eeAmount').value,
-        party: document.getElementById('eeParty').value
-      });
-      toast('Entry updated');
+      if(transfer){
+        await callApi('updateTransfer', {
+          id: document.getElementById('eeId').value,
+          date: document.getElementById('eeDate').value,
+          fromAccount: document.getElementById('eeAccount').value,
+          toAccount: document.getElementById('eeToAccount').value,
+          description: document.getElementById('eeDescription').value.trim(),
+          amount: document.getElementById('eeAmount').value
+        });
+      }else{
+        await callApi('update', {
+          id: document.getElementById('eeId').value,
+          date: document.getElementById('eeDate').value,
+          account: document.getElementById('eeAccount').value,
+          category: document.getElementById('eeCategory').value,
+          description: document.getElementById('eeDescription').value,
+          amount: document.getElementById('eeAmount').value,
+          party: document.getElementById('eeParty').value
+        });
+      }
+      toast(transfer ? 'Transfer updated' : 'Entry updated');
       document.getElementById('editEntryModal').classList.remove('show');
       loadRegister();
       loadInit();
@@ -1878,6 +1962,8 @@ document.getElementById('loginForm').addEventListener('submit', async (e)=>{
       });
       currentUser = user;
       sessionStorage.setItem('bss_user', JSON.stringify(user));
+      // Signing in again after an expired session: reload so every screen starts fresh.
+      if(sessionExpiredShown){ location.reload(); return; }
       document.getElementById('loginForm').reset();
       checkLoginGate();
     }catch(err){
@@ -1891,7 +1977,11 @@ document.getElementById('loginChangeUrl').addEventListener('click', (e)=>{
   document.getElementById('loginOverlay').classList.remove('show');
   document.querySelector('.nav-btn[data-view="settings"]').click();
 });
-document.getElementById('logoutBtn').addEventListener('click', ()=>{
+document.getElementById('logoutBtn').addEventListener('click', async ()=>{
+  // End the session on the server too (wait at most 3 seconds for it).
+  if(currentUser && currentUser.token){
+    await Promise.race([callApi('logout').catch(()=>{}), new Promise(r=>setTimeout(r, 3000))]);
+  }
   currentUser = null;
   sessionStorage.removeItem('bss_user');
   // Reload so no screen keeps the previous user's data or admin buttons.
