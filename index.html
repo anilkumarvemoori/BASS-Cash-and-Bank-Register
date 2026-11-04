@@ -1261,9 +1261,8 @@ function registerTotalsHtml(rows){
     '<span>Net <b class="amt">' + fmt(inc - exp) + '</b></span></div>';
 }
 
-// Last entered on top: Ref No. numbers are issued in entry order, so the highest
-// comes first even for back-dated entries. A transfer's two rows share one Ref No.;
-// show Transfer Out above Transfer In. Other ties fall back to newest date, then sheet order.
+// Latest date on top. Within the same date, the higher Ref No. (entered later) comes
+// first. A transfer's two rows share one Ref No.; show Transfer Out above Transfer In.
 const TYPE_RANK = {TransferOut:0, TransferIn:1};
 function refSeq(ref){
   const s = String(ref||'');
@@ -1274,9 +1273,9 @@ function refSeq(ref){
 }
 function sortByDate(list){
   return list.map((t,i)=>({t, i, d:toLocalISO(t.Date), r:refSeq(t.RefNo), k:TYPE_RANK[t.Type] ?? 0}))
-    .sort((a,b)=> a.r !== b.r ? b.r - a.r
+    .sort((a,b)=> a.d !== b.d ? b.d.localeCompare(a.d)
+                : a.r !== b.r ? b.r - a.r
                 : a.k !== b.k ? a.k - b.k
-                : a.d !== b.d ? b.d.localeCompare(a.d)
                 : a.i - b.i)
     .map(x=>x.t);
 }
