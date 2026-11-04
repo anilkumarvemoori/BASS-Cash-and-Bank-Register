@@ -956,21 +956,45 @@ let API_URL = localStorage.getItem('bss_api_url') || DEFAULT_API_URL || '';
 let currentUser = JSON.parse(sessionStorage.getItem('bss_user') || 'null');
 let STATE = { categories:[], transactions:[], accounts:[], societyName:'Balaji Service Society' };
 
-function fmt(n){ return '₹' + (Number(n)||0).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+// Negative amounts read "−₹32,000.00", not "₹-32,000.00".
+function fmt(n){
+  n = Number(n) || 0;
+  return (n < 0 ? '−' : '') + '₹' + Math.abs(n).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
 function isAdmin(){ return !!currentUser && currentUser.role === 'Admin'; }
+let toastTimer = null;
 function toast(msg, isError){
   const t = document.getElementById('toast');
   t.textContent = msg; t.className = 'toast show' + (isError ? ' error' : '');
-  setTimeout(()=> t.className='toast', 2600);
+  clearTimeout(toastTimer);  // a newer message must not be hidden by an older timer
+  toastTimer = setTimeout(()=> t.className='toast', isError ? 4500 : 2600);
+}
+
+// Disable a button while its action runs, so a double-click cannot save twice.
+async function withBusy(btn, fn, busyText){
+  if(btn && btn.disabled) return;
+  const label = btn ? btn.innerHTML : '';
+  if(btn){ btn.disabled = true; btn.textContent = busyText || 'Saving…'; }
+  try{ return await fn(); }
+  finally{ if(btn){ btn.disabled = false; btn.innerHTML = label; } }
 }
 
 async function callApi(action, payload){
   if(!API_URL){ toast('Set your Apps Script URL in Settings first.', true); throw new Error('No API URL'); }
   payload = Object.assign({action}, payload||{});
   if(currentUser){ payload.actorRole = currentUser.role; payload.actorUsername = currentUser.username; }
-  const res = await fetch(API_URL, { method:'POST', body: JSON.stringify(payload) });
-  const data = await res.json();
-  if(!data.ok) throw new Error(data.error || 'Request failed');
+  let res, data;
+  try{
+    res = await fetch(API_URL, { method:'POST', body: JSON.stringify(payload) });
+  }catch(err){
+    throw new Error('Could not connect to the server. Check the internet connection and try again.');
+  }
+  try{
+    data = await res.json();
+  }catch(err){
+    throw new Error('The server sent an unexpected reply (it may be busy). Please try again in a minute.');
+  }
+  if(!data || !data.ok) throw new Error((data && data.error) || 'Request failed. Please try again.');
   return data.data;
 }
 
@@ -984,6 +1008,7 @@ document.querySelectorAll('.nav-btn').forEach(btn=>{
     document.getElementById('view-'+btn.dataset.view).classList.add('active');
     window.scrollTo(0, 0);
     btn.scrollIntoView({block:'nearest', inline:'center'});  // keeps the active tab visible in the phone top bar
+    if(btn.dataset.view === 'add') setDefaultEntryDate(false);
     if(btn.dataset.view === 'register') loadRegister();
     if(btn.dataset.view === 'ledgers') loadParties();
     if(btn.dataset.view === 'users') loadUsers();
@@ -1052,18 +1077,34 @@ document.getElementById('addForm').addEventListener('submit', async (e)=>{
   if(isTransfer) payload.fromAccount = payload.account;
   if(!payload.date || !(Number(payload.amount) > 0)){ toast('Date and an amount greater than zero are required.', true); return; }
   if(isTransfer && payload.fromAccount === payload.toAccount){ toast('From and To accounts must be different.', true); return; }
-  try{
-    const res = await callApi('add', payload);
-    toast('Entry saved — ' + res.refNo);
-    if(currentType === 'Expense'){
-      const shouldPrint = confirm('Print voucher for this expense now?');
-      if(shouldPrint){ await openVoucher(res.id); }
-    }
-    document.getElementById('addForm').reset();
-    document.getElementById('fDate').value = todayISO();
-    await loadInit();
-  }catch(err){ toast(err.message, true); }
+  await withBusy(e.submitter || e.target.querySelector('button[type="submit"]'), async ()=>{
+    try{
+      const res = await callApi('add', payload);
+      toast('Entry saved — ' + res.refNo);
+      if(currentType === 'Expense'){
+        const shouldPrint = confirm('Print voucher for this expense now?');
+        if(shouldPrint){ await openVoucher(res.id); }
+      }
+      document.getElementById('addForm').reset();
+      setDefaultEntryDate(true);
+      await loadInit();
+    }catch(err){ toast(err.message, true); }
+  });
 });
+
+// The Add Entry date defaults to today. If the app stays open past midnight the
+// default must move to the new day — unless the user picked a date themselves.
+function setDefaultEntryDate(force){
+  const f = document.getElementById('fDate');
+  if(force || !f.dataset.userPicked){ f.value = todayISO(); delete f.dataset.userPicked; }
+}
+document.getElementById('fDate').addEventListener('change', e=>{
+  if(e.isTrusted) e.target.dataset.userPicked = e.target.value !== todayISO() ? '1' : '';
+});
+function onDayMaybeChanged(){ updateClock(); setDefaultEntryDate(false); }
+window.addEventListener('focus', onDayMaybeChanged);
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) onDayMaybeChanged(); });
+setInterval(onDayMaybeChanged, 60 * 1000);
 
 function todayISO(){ return toLocalISO(new Date()); }
 
@@ -1085,13 +1126,26 @@ async function loadInit(){
     document.getElementById('cardMonthIncome').textContent = fmt(data.monthSummary.income);
     document.getElementById('cardMonthExpense').textContent = fmt(data.monthSummary.expense);
     document.getElementById('cardMonthNet').textContent = fmt(data.monthSummary.net);
-    document.getElementById('cardReceivables').textContent = fmt(data.ledgerSummary.receivables);
-    document.getElementById('cardPayables').textContent = fmt(data.ledgerSummary.payables);
     populateCategoryDropdown();
     populateAccountDropdowns();
     renderCategoryLists();
-    await loadRecent();
+    await Promise.all([loadRecent(), loadPartyTotals(data.ledgerSummary)]);
   }catch(err){ toast(err.message, true); }
+}
+
+// Receivables / payables are added up party by party, so a supplier paid in
+// advance counts as owed to us instead of showing as a negative payable.
+async function loadPartyTotals(serverSummary){
+  let t;
+  try{
+    STATE.parties = await callApi('listParties');
+    t = partyTotals(STATE.parties);
+  }catch(err){
+    const r = Number(serverSummary.receivables) || 0, p = Number(serverSummary.payables) || 0;
+    t = { receivables: Math.max(r,0) + Math.max(-p,0), payables: Math.max(p,0) + Math.max(-r,0) };
+  }
+  document.getElementById('cardReceivables').textContent = fmt(t.receivables);
+  document.getElementById('cardPayables').textContent = fmt(t.payables);
 }
 
 async function loadRecent(){
@@ -1410,21 +1464,23 @@ document.getElementById('cancelEditEntry').addEventListener('click', ()=>{
 document.getElementById('editEntryForm').addEventListener('submit', async (e)=>{
   e.preventDefault();
   if(!(Number(document.getElementById('eeAmount').value) > 0)){ toast('Amount must be greater than zero.', true); return; }
-  try{
-    await callApi('update', {
-      id: document.getElementById('eeId').value,
-      date: document.getElementById('eeDate').value,
-      account: document.getElementById('eeAccount').value,
-      category: document.getElementById('eeCategory').value,
-      description: document.getElementById('eeDescription').value,
-      amount: document.getElementById('eeAmount').value,
-      party: document.getElementById('eeParty').value
-    });
-    toast('Entry updated');
-    document.getElementById('editEntryModal').classList.remove('show');
-    loadRegister();
-    loadInit();
-  }catch(err){ toast(err.message, true); }
+  await withBusy(e.submitter || e.target.querySelector('button[type="submit"]'), async ()=>{
+    try{
+      await callApi('update', {
+        id: document.getElementById('eeId').value,
+        date: document.getElementById('eeDate').value,
+        account: document.getElementById('eeAccount').value,
+        category: document.getElementById('eeCategory').value,
+        description: document.getElementById('eeDescription').value,
+        amount: document.getElementById('eeAmount').value,
+        party: document.getElementById('eeParty').value
+      });
+      toast('Entry updated');
+      document.getElementById('editEntryModal').classList.remove('show');
+      loadRegister();
+      loadInit();
+    }catch(err){ toast(err.message, true); }
+  });
 });
 
 // ---- Categories ----
@@ -1433,30 +1489,51 @@ document.getElementById('catForm').addEventListener('submit', async (e)=>{
   const type = document.getElementById('catType').value;
   const name = document.getElementById('catName').value.trim();
   if(!name) return;
-  try{
-    await callApi('addCategory', {type, category:name});
-    toast('Category added');
-    document.getElementById('catName').value = '';
-    await loadInit();
-  }catch(err){ toast(err.message, true); }
+  await withBusy(e.submitter || e.target.querySelector('button[type="submit"]'), async ()=>{
+    try{
+      await callApi('addCategory', {type, category:name});
+      toast('Category added');
+      document.getElementById('catName').value = '';
+      await loadInit();
+    }catch(err){ toast(err.message, true); }
+  });
 });
 
 // ---- Ledgers (credit accounts) ----
 let selectedPartyId = null;
 let newPartyType = 'Debtor';
 
+// Party balance = opening + bills/credit − payments. Positive means the normal
+// direction for the party type (a Debtor owes us, we owe a Creditor); negative
+// means the reverse, e.g. a supplier paid in advance now owes us.
+function partyBalanceInfo(type, balance){
+  const bal = Number(balance) || 0;
+  const oweUs = type === 'Debtor' ? bal > 0 : bal < 0;
+  return {
+    oweUs, amount: Math.abs(bal), settled: bal === 0,
+    label: bal === 0 ? 'SETTLED' : (oweUs ? 'OWED TO US' : 'WE OWE'),
+    note: bal < 0 ? (type === 'Debtor' ? 'advance received' : 'advance paid') : '',
+    cls: bal === 0 ? '' : (oweUs ? 'owe-us' : 'we-owe'),
+    color: bal === 0 ? 'var(--muted)' : (oweUs ? 'var(--income)' : 'var(--expense)')
+  };
+}
+function partyTotals(parties){
+  let receivables = 0, payables = 0;
+  (parties || []).forEach(p=>{ const b = partyBalanceInfo(p.Type, p.Balance); if(b.oweUs) receivables += b.amount; else payables += b.amount; });
+  return { receivables, payables };
+}
+
 document.getElementById('printLedgerSummaryBtn').addEventListener('click', ()=>{
   const parties = STATE.parties || [];
   if(!parties.length){ toast('No parties to print yet.', true); return; }
-  let receivables = 0, payables = 0;
+  const { receivables, payables } = partyTotals(parties);
   const rows = parties.map(p=>{
-    const oweUs = p.Type === 'Debtor';
-    if(oweUs) receivables += p.Balance; else payables += p.Balance;
+    const b = partyBalanceInfo(p.Type, p.Balance);
     return '<tr' + (p.Active ? '' : ' style="opacity:.6;"') + '>' +
       '<td>' + escapeHtml(p.Name) + (p.Active ? '' : ' (Inactive)') + '</td>' +
-      '<td>' + p.Type + '</td>' +
+      '<td>' + p.Type + (b.note ? ' — ' + b.note : '') + '</td>' +
       '<td>' + escapeHtml(p.Contact||'') + '</td>' +
-      '<td class="amt ' + (oweUs?'income':'expense') + '">' + fmt(Math.abs(p.Balance)) + '</td>' +
+      '<td class="amt ' + (b.settled ? '' : (b.oweUs?'income':'expense')) + '">' + fmt(b.amount) + (b.settled ? '' : ' ' + (b.oweUs ? 'Dr' : 'Cr')) + '</td>' +
       '</tr>';
   }).join('');
   const table = '<table class="register"><thead><tr><th>Party</th><th>Type</th><th>Contact</th><th style="text-align:right;">Balance</th></tr></thead><tbody>' +
@@ -1488,19 +1565,21 @@ document.querySelectorAll('button[data-ptype]').forEach(b=>{
 });
 document.getElementById('partyForm').addEventListener('submit', async (e)=>{
   e.preventDefault();
-  try{
-    await callApi('addParty', {
-      name: document.getElementById('pName').value,
-      type: newPartyType,
-      openingBalance: document.getElementById('pOpening').value,
-      contact: document.getElementById('pContact').value,
-      notes: document.getElementById('pNotes').value
-    });
-    toast('Party added');
-    document.getElementById('partyForm').reset();
-    document.getElementById('partyForm').style.display = 'none';
-    await loadParties();
-  }catch(err){ toast(err.message, true); }
+  await withBusy(e.submitter || e.target.querySelector('button[type="submit"]'), async ()=>{
+    try{
+      await callApi('addParty', {
+        name: document.getElementById('pName').value,
+        type: newPartyType,
+        openingBalance: document.getElementById('pOpening').value,
+        contact: document.getElementById('pContact').value,
+        notes: document.getElementById('pNotes').value
+      });
+      toast('Party added');
+      document.getElementById('partyForm').reset();
+      document.getElementById('partyForm').style.display = 'none';
+      await loadParties();
+    }catch(err){ toast(err.message, true); }
+  });
 });
 
 async function loadParties(){
@@ -1513,10 +1592,11 @@ async function loadParties(){
       return;
     }
     document.getElementById('partyListWrap').innerHTML = parties.map(p=>{
-      const oweUs = p.Type === 'Debtor';
+      const b = partyBalanceInfo(p.Type, p.Balance);
       return '<div class="party-item' + (p.ID===selectedPartyId?' active':'') + '"' + (p.Active ? '' : ' style="opacity:.5;"') + ' onclick="openParty(\''+p.ID+'\')">' +
-        '<div><div class="pname">' + escapeHtml(p.Name) + '</div><div class="ptype">' + p.Type + (p.Active ? '' : ' · Inactive') + '</div></div>' +
-        '<div class="pbal ' + (oweUs?'owe-us':'we-owe') + '">' + fmt(Math.abs(p.Balance)) + '</div>' +
+        '<div><div class="pname">' + escapeHtml(p.Name) + '</div><div class="ptype">' + p.Type + (b.note ? ' · ' + b.note : '') + (p.Active ? '' : ' · Inactive') + '</div></div>' +
+        '<div style="text-align:right;"><div class="pbal ' + b.cls + '">' + fmt(b.amount) + '</div>' +
+        '<div class="ptype">' + (b.settled ? 'Settled' : (b.oweUs ? 'Owed to us' : 'We owe')) + '</div></div>' +
         '</div>';
     }).join('');
   }catch(err){ toast(err.message, true); document.getElementById('partyListWrap').innerHTML = '<div class="empty">Could not load parties.</div>'; }
@@ -1540,8 +1620,8 @@ async function openParty(partyId){
 function renderPartyDetail(data){
   const wrap = document.getElementById('partyDetailWrap');
   const p = data.party;
-  const oweUs = p.Type === 'Debtor';
-  const balColor = oweUs ? 'var(--income)' : 'var(--expense)';
+  const oweUs = p.Type === 'Debtor';  // drives the entry-type wording below
+  const bal = partyBalanceInfo(p.Type, data.balance);
   const admin = isAdmin();
   currentPartyPrintData = { p, balance: data.balance };
 
@@ -1571,7 +1651,7 @@ function renderPartyDetail(data){
       ) : '') +
     '</div>' +
     '</div><div style="text-align:right;"><div style="font-size:11px; color:var(--muted); font-weight:600;">' +
-    (oweUs ? 'OWED TO US' : 'WE OWE') + '</div><div class="bal" style="color:'+balColor+';">' + fmt(Math.abs(data.balance)) + '</div></div></div>';
+    bal.label + (bal.note ? ' · ' + bal.note.toUpperCase() : '') + '</div><div class="bal" style="color:'+bal.color+';">' + fmt(bal.amount) + '</div></div></div>';
 
   html += data.entries.length ? '<div class="table-scroll">' + renderLedgerTable(data.entries) + '</div>' : '<div class="empty">No entries recorded for this party yet.</div>';
   html += '</div>'; // #partyLedgerPrintArea
@@ -1594,23 +1674,25 @@ function renderPartyDetail(data){
   document.getElementById('leDirection').addEventListener('change', (e)=>{
     document.getElementById('leAccountField').style.display = e.target.value === 'Payment' ? 'block' : 'none';
   });
-  document.getElementById('leSaveBtn').addEventListener('click', async ()=>{
+  document.getElementById('leSaveBtn').addEventListener('click', async (e)=>{
     const direction = document.getElementById('leDirection').value;
     const amount = document.getElementById('leAmount').value;
     const date = document.getElementById('leDate').value;
     if(!date || !(Number(amount) > 0)){ toast('Date and an amount greater than zero are required.', true); return; }
-    try{
-      await callApi('addLedgerEntry', {
-        partyId: p.ID, direction, date, amount,
-        account: direction === 'Payment' ? document.getElementById('leAccount').value : '',
-        description: document.getElementById('leDescription').value,
-        refNo: document.getElementById('leRefNo').value,
-        enteredBy: currentUser ? currentUser.username : ''
-      });
-      toast('Ledger entry saved');
-      openParty(p.ID);
-      loadInit();
-    }catch(err){ toast(err.message, true); }
+    await withBusy(e.currentTarget, async ()=>{
+      try{
+        await callApi('addLedgerEntry', {
+          partyId: p.ID, direction, date, amount,
+          account: direction === 'Payment' ? document.getElementById('leAccount').value : '',
+          description: document.getElementById('leDescription').value,
+          refNo: document.getElementById('leRefNo').value,
+          enteredBy: currentUser ? currentUser.username : ''
+        });
+        toast('Ledger entry saved');
+        openParty(p.ID);
+        loadInit();
+      }catch(err){ toast(err.message, true); }
+    });
   });
 }
 
@@ -1618,10 +1700,10 @@ let currentPartyPrintData = null;
 function printPartyLedger(){
   if(!currentPartyPrintData) return;
   const { p, balance } = currentPartyPrintData;
-  const oweUs = p.Type === 'Debtor';
+  const b = partyBalanceInfo(p.Type, balance);
   let title = STATE.societyName + ' — Party Ledger Statement';
   title += ' — ' + p.Name + ' (' + p.Type + ')';
-  title += ' — Balance ' + (oweUs ? 'Owed to Us' : 'We Owe') + ': ' + fmt(Math.abs(balance));
+  title += b.settled ? ' — Balance: Settled' : ' — Balance ' + (b.oweUs ? 'Owed to Us' : 'We Owe') + (b.note ? ' (' + b.note + ')' : '') + ': ' + fmt(b.amount);
   title += ' — Printed ' + formatDate(new Date());
   document.getElementById('printLedgerTitle').textContent = title;
   document.body.classList.add('ledger-print-mode');
@@ -1788,19 +1870,21 @@ document.getElementById('loginForm').addEventListener('submit', async (e)=>{
   e.preventDefault();
   const errEl = document.getElementById('loginError');
   errEl.style.display = 'none';
-  try{
-    const user = await callApi('login', {
-      username: document.getElementById('loginUsername').value.trim(),
-      pin: document.getElementById('loginPin').value
-    });
-    currentUser = user;
-    sessionStorage.setItem('bss_user', JSON.stringify(user));
-    document.getElementById('loginForm').reset();
-    checkLoginGate();
-  }catch(err){
-    errEl.textContent = err.message;
-    errEl.style.display = 'block';
-  }
+  await withBusy(e.submitter || e.target.querySelector('button[type="submit"]'), async ()=>{
+    try{
+      const user = await callApi('login', {
+        username: document.getElementById('loginUsername').value.trim(),
+        pin: document.getElementById('loginPin').value
+      });
+      currentUser = user;
+      sessionStorage.setItem('bss_user', JSON.stringify(user));
+      document.getElementById('loginForm').reset();
+      checkLoginGate();
+    }catch(err){
+      errEl.textContent = err.message;
+      errEl.style.display = 'block';
+    }
+  }, 'Signing in…');
 });
 document.getElementById('loginChangeUrl').addEventListener('click', (e)=>{
   e.preventDefault();
@@ -1810,7 +1894,8 @@ document.getElementById('loginChangeUrl').addEventListener('click', (e)=>{
 document.getElementById('logoutBtn').addEventListener('click', ()=>{
   currentUser = null;
   sessionStorage.removeItem('bss_user');
-  checkLoginGate();
+  // Reload so no screen keeps the previous user's data or admin buttons.
+  location.reload();
 });
 
 // ---- Users management ----
@@ -1828,17 +1913,19 @@ async function loadUsers(){
 }
 document.getElementById('userForm').addEventListener('submit', async (e)=>{
   e.preventDefault();
-  try{
-    await callApi('addUser', {
-      username: document.getElementById('uUsername').value.trim(),
-      pin: document.getElementById('uPin').value,
-      displayName: document.getElementById('uDisplayName').value.trim(),
-      role: document.getElementById('uRole').value
-    });
-    toast('User added');
-    document.getElementById('userForm').reset();
-    loadUsers();
-  }catch(err){ toast(err.message, true); }
+  await withBusy(e.submitter || e.target.querySelector('button[type="submit"]'), async ()=>{
+    try{
+      await callApi('addUser', {
+        username: document.getElementById('uUsername').value.trim(),
+        pin: document.getElementById('uPin').value,
+        displayName: document.getElementById('uDisplayName').value.trim(),
+        role: document.getElementById('uRole').value
+      });
+      toast('User added');
+      document.getElementById('userForm').reset();
+      loadUsers();
+    }catch(err){ toast(err.message, true); }
+  });
 });
 async function deleteUser(id){
   if(!confirm('Delete this user account?')) return;
@@ -1915,18 +2002,20 @@ async function loadAccountsView(skipSpinner){
 }
 document.getElementById('accountForm').addEventListener('submit', async (e)=>{
   e.preventDefault();
-  try{
-    await callApi('addAccount', {
-      name: document.getElementById('aName').value.trim(),
-      type: document.getElementById('aType').value,
-      openingBalance: document.getElementById('aOpening').value,
-      notes: document.getElementById('aNotes').value
-    });
-    toast('Account added');
-    document.getElementById('accountForm').reset();
-    loadAccountsView();
-    loadInit();
-  }catch(err){ toast(err.message, true); }
+  await withBusy(e.submitter || e.target.querySelector('button[type="submit"]'), async ()=>{
+    try{
+      await callApi('addAccount', {
+        name: document.getElementById('aName').value.trim(),
+        type: document.getElementById('aType').value,
+        openingBalance: document.getElementById('aOpening').value,
+        notes: document.getElementById('aNotes').value
+      });
+      toast('Account added');
+      document.getElementById('accountForm').reset();
+      loadAccountsView();
+      loadInit();
+    }catch(err){ toast(err.message, true); }
+  });
 });
 async function toggleAccountActive(id, active){
   try{ await callApi('setAccountActive', {id, active}); toast(active ? 'Account reactivated' : 'Account deactivated'); loadAccountsView(); loadInit(); }
