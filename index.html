@@ -302,6 +302,16 @@
   table.register.txn .row-actions{padding-left:4px; padding-right:10px; width:1%;}
   table.register.txn .row-actions .icon-btn{width:30px; height:30px; margin-left:0;}
 
+  /* Register totals (bottom of the table) */
+  .reg-totals{border-top:1px solid var(--line); background:var(--surface-alt); padding:14px 16px;}
+  .rt-grid{display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:10px;}
+  .rt-tile{background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:10px 14px;}
+  .rt-label{font-size:11.5px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.04em;}
+  .rt-value{font-size:17px; font-weight:800; text-align:left; margin-top:3px;}
+  .rt-foot{display:flex; gap:22px; flex-wrap:wrap; justify-content:flex-end; margin-top:12px; font-size:13px; color:var(--ink-2);}
+  .rt-foot small{color:var(--muted);}
+  @media (max-width:900px){ .rt-grid{grid-template-columns:repeat(2, minmax(0,1fr));} }
+
   .empty{padding:52px 24px; text-align:center; color:var(--muted); font-size:14px;}
   .toast{
     position:fixed; bottom:24px; right:24px; background:var(--ink); color:var(--bg);
@@ -1325,18 +1335,35 @@ function applyFiltersLocally(list, f){
   });
 }
 
+// Totals for the rows on screen, split by account type. Fees = Income entries,
+// Expenses = Expense entries. Transfers only move money between accounts, so
+// they are shown separately and not counted as fees or expenses.
 function registerTotalsHtml(rows){
-  let inc = 0, exp = 0;
+  const sum = { cashFees:0, bankFees:0, cashExp:0, bankExp:0, transfers:0 };
   rows.forEach(t=>{
     const a = Number(t.Amount) || 0;
-    if(t.Type === 'Income' || t.Type === 'TransferIn') inc += a;
-    else if(t.Type === 'Expense' || t.Type === 'TransferOut') exp += a;
+    const cash = accountTypeOf(t.Account) === 'Cash';
+    if(t.Type === 'Income') sum[cash ? 'cashFees' : 'bankFees'] += a;
+    else if(t.Type === 'Expense') sum[cash ? 'cashExp' : 'bankExp'] += a;
+    else if(t.Type === 'TransferOut') sum.transfers += a;
   });
-  return '<div style="display:flex; gap:24px; flex-wrap:wrap; justify-content:flex-end; padding:12px 16px; border-top:1px solid var(--line); font-size:13px;">' +
-    '<span>' + rows.length + ' entries</span>' +
-    '<span>Receipts <b class="amt income">' + fmt(inc) + '</b></span>' +
-    '<span>Payments <b class="amt expense">' + fmt(exp) + '</b></span>' +
-    '<span>Net <b class="amt">' + fmt(inc - exp) + '</b></span></div>';
+  const fees = sum.cashFees + sum.bankFees, exps = sum.cashExp + sum.bankExp;
+  const tile = (label, value, cls) =>
+    '<div class="rt-tile"><div class="rt-label">' + label + '</div><div class="rt-value amt ' + cls + '">' + fmt(value) + '</div></div>';
+  return '<div class="reg-totals">' +
+    '<div class="rt-grid">' +
+      tile('Cash Fees', sum.cashFees, 'income') +
+      tile('Bank Fees', sum.bankFees, 'income') +
+      tile('Cash Expenses', sum.cashExp, 'expense') +
+      tile('Bank Expenses', sum.bankExp, 'expense') +
+    '</div>' +
+    '<div class="rt-foot">' +
+      '<span>' + rows.length + ' entries</span>' +
+      (sum.transfers ? '<span>Transfers <b class="amt">' + fmt(sum.transfers) + '</b> <small>(not counted)</small></span>' : '') +
+      '<span>Total Fees <b class="amt income">' + fmt(fees) + '</b></span>' +
+      '<span>Total Expenses <b class="amt expense">' + fmt(exps) + '</b></span>' +
+      '<span>Net <b class="amt">' + fmt(fees - exps) + '</b></span>' +
+    '</div></div>';
 }
 
 // Latest date on top. Within the same date, the higher Ref No. (entered later) comes
